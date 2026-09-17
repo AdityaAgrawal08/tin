@@ -1,0 +1,168 @@
+"""Create-only, atomic audit publication with lost-response reconciliation."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import re
+from collections.abc import Awaitable, Callable
+
+from tin_lite.code_storage import CodeStorage
+from tin_lite.organic_audit import ARTIFACT_LIMITS, audit_paths
+from tin_lite.publication import OutputConflictError, PublicationPendingError
+
+
+def _sha(value) -> bool:
+    return isinstance(value, str) and re.fullmatch("[0-9a-f]{40}", value) is not None
+
+
+async def publish_audit(
+    *,
+    storage: CodeStorage,
+    repo_id: str,
+    branch: str,
+    run_id: str,
+    documents: dict[str, bytes],
+    intent: dict | None,
+    save_intent: Callable[[dict], Awaitable[None]],
+    validate_active: Callable[[], Awaitable[None]],
+) -> str:
+    return await publish_artifacts(
+        storage=storage,
+        repo_id=repo_id,
+        branch=branch,
+        documents=documents,
+        paths=audit_paths(run_id),
+        limits=ARTIFACT_LIMITS,
+        message=f"organic.audit {run_id} [organic:{run_id}:publish]",
+        intent=intent,
+        save_intent=save_intent,
+        validate_active=validate_active,
+    )
+
+
+async def publish_artifacts(
+    *,
+    storage: CodeStorage,
+    repo_id: str,
+    branch: str,
+    documents: dict[str, bytes],
+    paths: dict[str, str],
+    limits: dict[str, int],
+    message: str,
+    intent: dict | None,
+    save_intent: Callable[[dict], Awaitable[None]],
+    validate_active: Callable[[], Awaitable[None]],
+) -> str:
+    """Shared create-only bundle writer; each caller owns its exact path/size contract."""
+    if set(documents) != set(paths.values()):
+        raise ValueError("Publication must contain exactly its declared run-scoped artifacts.")
+    for name, path in paths.items():
+        content = documents[path]
+        content.decode("utf-8")
+        if not 0 < len(content) <= limits[name]:
+            raise ValueError("Audit artifact exceeds its safe read contract.")
+    manifest = {path: hashlib.sha256(content).hexdigest() for path, content in documents.items()}
+    repo = await storage.get_repo(repo_id)
+    async with asyncio.timeout(120):
+        head = await storage.head_sha(repo, branch)
+        if not _sha(head):
+            raise PublicationPendingError("Audit destination has no canonical revision.")
+        if intent is not None:
+            if intent.get("manifest") != manifest or not _sha(intent.get("parent")):
+                raise PublicationPendingError("Audit publication intent changed.")
+            original = await _reconcile(
+                storage,
+                repo,
+                head=head,
+                parent=intent["parent"],
+                message=message,
+                documents=documents,
+            )
+            if original is not None:
+                return original
+        for path in documents:
+            if await storage._publication_file(repo, ref=head, path=path) is not None:
+                raise OutputConflictError(
+                    "An audit output path already exists; it was left unchanged."
+                )
+        await validate_active()
+        await save_intent({"version": 1, "manifest": manifest, "parent": head})
+        await validate_active()
+        try:
+            builder = repo.create_commit(
+                target_branch=branch,
+                expected_head_sha=head,
+                commit_message=message,
+                author={"name": "Tin Switchboard", "email": "switchboard@tin.local"},
+                ttl=300,
+            )
+            for path, content in documents.items():
+                builder.add_file(path, content)
+            result = await builder.send()
+            if not _sha(result.get("commit_sha")):
+                raise PublicationPendingError("Audit publication returned no commit identity.")
+            return result["commit_sha"]
+        except Exception as exc:
+            raise PublicationPendingError("Audit publication must reconcile before retry.") from exc
+
+
+async def _reconcile(
+    storage, repo, *, head: str, parent: str, message: str, documents: dict[str, bytes]
+) -> str | None:
+    cursor = None
+    next_sha = head
+    nodes: dict[str, dict] = {}
+    visited: set[str] = set()
+    cursors: set[str] = set()
+    for _ in range(20):
+        if next_sha == parent:
+            return None
+        params = {"ref": head, "limit": "100"}
+        if cursor is not None:
+            params["cursor"] = cursor
+        result = await storage._publication_json(repo, "commits", **params)
+        for commit in result.get("commits", []):
+            if not _sha(commit.get("sha")):
+                raise PublicationPendingError("Audit publication history is invalid.")
+            nodes[commit["sha"]] = commit
+        while next_sha in nodes and next_sha != parent:
+            if next_sha in visited:
+                raise PublicationPendingError("Audit publication history is cyclic.")
+            visited.add(next_sha)
+            commit = nodes[next_sha]
+            parents = commit.get("parent_shas")
+            if not isinstance(parents, list) or len(parents) != 1 or not _sha(parents[0]):
+                raise PublicationPendingError(
+                    "Audit publication history is not a proven parent chain."
+                )
+            if commit.get("message") == message:
+                if parents != [parent]:
+                    raise PublicationPendingError(
+                        "Audit publication marker has a different parent."
+                    )
+                for path, content in documents.items():
+                    entry = await storage._publication_file(
+                        repo, ref=next_sha, path=path, max_bytes=max(1_000_000, len(content))
+                    )
+                    if entry != ("100644", content):
+                        raise PublicationPendingError(
+                            "Audit publication marker has different output."
+                        )
+                diff = await repo.get_commit_diff(sha=next_sha, ttl=300)
+                files = diff.get("files", [])
+                if (
+                    diff.get("filtered_files")
+                    or {f.get("path") for f in files} != set(documents)
+                    or any(f.get("old_path") not in {None, f.get("path")} for f in files)
+                ):
+                    raise PublicationPendingError("Audit publication changes unexpected paths.")
+                return next_sha
+            next_sha = parents[0]
+        if next_sha == parent:
+            return None
+        cursor = result.get("next_cursor")
+        if not result.get("has_more") or not isinstance(cursor, str) or cursor in cursors:
+            raise PublicationPendingError("Audit publication history is incomplete.")
+        cursors.add(cursor)
+    raise PublicationPendingError("Audit publication reconciliation reached its history limit.")

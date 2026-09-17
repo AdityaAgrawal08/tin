@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Larry, a friendly lobster holding a phone">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7A5C"/><stop offset="1" stop-color="#F05A3A"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3DA1FF"/><stop offset="1" stop-color="#0A84FF"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+  <style>
+    .ink{stroke:#1B1B1F;stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+  </style>
+
+  <!-- ground shadow -->
+  <ellipse cx="262" cy="452" rx="150" ry="18" fill="#1B1B1F" opacity=".10" filter="url(#soft)"/>
+
+  <!-- tail: curls out to the right -->
+  <g class="ink" fill="url(#shell)">
+    <path d="M330 372 C372 372 400 392 404 420 C406 434 396 444 384 442 C368 440 352 426 336 412 Z"/>
+    <path d="M362 404 C392 404 416 416 420 440 C421 448 414 454 406 452 C392 450 380 440 368 430 Z" fill="#F05A3A"/>
+    <path d="M400 436 C420 430 442 434 452 444 C446 458 428 462 412 456 Z"/>
+    <path d="M404 452 C420 456 438 470 440 484 C424 486 408 478 400 466 Z"/>
+    <path d="M394 458 C402 470 402 486 394 496 C382 488 378 472 384 460 Z"/>
+  </g>
+
+  <!-- legs -->
+  <g class="ink" fill="none" stroke-width="6">
+    <path d="M196 398 C186 412 178 420 166 426"/>
+    <path d="M214 410 C208 424 202 432 192 440"/>
+    <path d="M300 410 C306 424 312 432 322 440"/>
+    <path d="M318 398 C328 412 336 420 348 426"/>
+  </g>
+
+  <!-- body -->
+  <ellipse class="ink" cx="256" cy="300" rx="122" ry="112" fill="url(#shell)"/>
+  <path d="M182 322 C206 306 306 306 330 322 C324 372 296 400 256 400 C216 400 188 372 182 322 Z" fill="#FFE1D3"/>
+  <g fill="none" stroke="#F3B9A4" stroke-width="5" stroke-linecap="round">
+    <path d="M200 344 C224 336 288 336 312 344"/>
+    <path d="M208 364 C230 358 282 358 304 364"/>
+    <path d="M222 382 C238 378 274 378 290 382"/>
+  </g>
+  <path d="M176 262 C186 222 214 200 246 196" fill="none" stroke="#FFB39F" stroke-width="10" stroke-linecap="round" opacity=".9"/>
+
+  <!-- antennae -->
+  <g class="ink" fill="none">
+    <path d="M218 196 C206 156 190 132 176 118"/>
+    <path d="M294 196 C306 156 322 132 336 118"/>
+  </g>
+  <circle class="ink" cx="172" cy="114" r="9" fill="#FF7A5C"/>
+  <circle class="ink" cx="340" cy="114" r="9" fill="#FF7A5C"/>
+
+  <!-- eyes: exactly one of these two groups is shown per frame -->
+  <g id="eyes-open">
+    <ellipse cx="220" cy="272" rx="30" ry="34" fill="#fff" class="ink"/>
+    <ellipse cx="292" cy="272" rx="30" ry="34" fill="#fff" class="ink"/>
+    <circle cx="228" cy="278" r="15" fill="#1B1B1F"/>
+    <circle cx="300" cy="278" r="15" fill="#1B1B1F"/>
+    <circle cx="234" cy="270" r="5" fill="#fff"/>
+    <circle cx="306" cy="270" r="5" fill="#fff"/>
+  </g>
+  <g id="eyes-closed" display="none">
+    <path d="M194 278 C204 290 236 290 246 278" class="ink" fill="none" stroke-width="9"/>
+    <path d="M266 278 C276 290 308 290 318 278" class="ink" fill="none" stroke-width="9"/>
+  </g>
+  <!-- brows -->
+  <g class="ink" fill="none" stroke-width="6">
+    <path d="M194 236 C204 226 224 224 240 230"/>
+    <path d="M272 230 C288 224 308 226 318 236"/>
+  </g>
+  <!-- blush -->
+  <ellipse cx="186" cy="310" rx="16" ry="9" fill="#FF9C86" opacity=".8"/>
+  <ellipse cx="326" cy="310" rx="16" ry="9" fill="#FF9C86" opacity=".8"/>
+
+  <!-- mouth: exactly one of these three groups is shown per frame -->
+  <g id="mouth-closed">
+    <path d="M232 318 C246 336 266 336 280 318" class="ink" fill="none"/>
+  </g>
+  <g id="mouth-mid" display="none">
+    <path d="M232 316 C246 340 266 340 280 316 Z" class="ink" fill="#1B1B1F"/>
+    <path d="M244 324 C250 330 262 330 268 324 Z" fill="#FF8FA0"/>
+  </g>
+  <g id="mouth-open" display="none">
+    <path d="M226 312 C238 356 274 356 286 312 Z" class="ink" fill="#1B1B1F"/>
+    <ellipse cx="256" cy="340" rx="14" ry="8" fill="#FF8FA0"/>
+  </g>
+
+  <!-- right claw: waving hello -->
+  <g class="ink" fill="url(#shell)">
+    <path d="M356 300 C384 292 404 270 404 244"/>
+    <path d="M404 244 C392 220 416 196 436 206 C452 214 452 240 440 254 C430 266 414 266 404 258 Z"/>
+    <path d="M404 244 C394 234 396 216 410 208 C408 222 406 234 412 246 Z" fill="#F05A3A"/>
+  </g>
+
+  <!-- left claw: holding the phone -->
+  <g class="ink" fill="url(#shell)">
+    <path d="M160 300 C132 292 112 270 116 244"/>
+    <path d="M116 244 C128 220 104 196 84 206 C68 214 68 240 80 254 C90 266 106 266 116 258 Z"/>
+  </g>
+  <g transform="rotate(-8 112 232)">
+    <rect x="86" y="188" width="54" height="96" rx="12" fill="#1B1B1F"/>
+    <rect x="92" y="196" width="42" height="80" rx="8" fill="#F5F5F7"/>
+    <rect x="98" y="206" width="30" height="12" rx="6" fill="url(#bubble)"/>
+    <rect x="102" y="224" width="26" height="10" rx="5" fill="#E5E5EA"/>
+    <rect x="98" y="240" width="30" height="12" rx="6" fill="url(#bubble)"/>
+    <rect x="106" y="258" width="14" height="4" rx="2" fill="#C7C7CC"/>
+  </g>
+  <!-- online dot -->
+  <circle cx="352" cy="204" r="13" fill="#34C759" stroke="#fff" stroke-width="5"/>
+
+  <!-- optional payoff expression: a delivered-message bubble with a check mark -->
+  <g id="expr-happy" display="none">
+    <path d="M40 60 h96 a18 18 0 0 1 18 18 v40 a18 18 0 0 1 -18 18 h-30 l-14 20 l-5 -20 h-47 a18 18 0 0 1 -18 -18 v-40 a18 18 0 0 1 18 -18 z" fill="url(#bubble)"/>
+    <path d="M66 100 l16 16 l34 -36" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M400 150 l6 14 l14 6 l-14 6 l-6 14 l-6 -14 l-14 -6 l14 -6 z" fill="#FFD21F"/>
+    <path d="M150 140 l4 9 l9 4 l-9 4 l-4 9 l-4 -9 l-9 -4 l9 -4 z" fill="#FFD21F"/>
+  </g>
+</svg>

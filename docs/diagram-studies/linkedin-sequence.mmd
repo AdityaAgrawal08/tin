@@ -1,0 +1,54 @@
+graph TD
+  %% tin:composition
+  subgraph campaign["One campaign generation · one workflow"]
+    direction TD
+    %% tin:group frame
+    subgraph recipient_a["Recipient A · progressing"]
+      direction TD
+      %% tin:group lane
+      subgraph first_touch
+        direction LR
+        %% tin:group layout
+        window_a["Send window<br/>Wait until eligible"]:::wait
+        preflight["Preflight<br/>Re-read ledger"]:::step
+        dispatch["Dispatch · Voyager<br/>One send attempt"]:::step
+        sent_a["Sent<br/>Touch 1 delivered"]:::receipt
+      end
+      subgraph later_touches
+        direction RL
+        %% tin:group layout
+        delay_a["Wait three days"]:::wait
+        touch_two["Touch 2"]:::step
+        delay_b["Wait for next window"]:::wait
+        touch_three["Touch 3"]:::step
+      end
+    end
+    subgraph recipient_b["Recipient B · replied"]
+      direction LR
+      %% tin:group lane
+      window_b["Send window"]:::wait
+      touch_b["Touch 1 sent"]:::step
+      reply["Reply received<br/>Cancel this recipient’s future"]:::receipt
+      cancel_two["Touch 2 cancelled"]:::ghost
+      cancel_three["Touch 3 cancelled"]:::ghost
+    end
+    subgraph recipient_c["Recipient C · uncertain"]
+      direction LR
+      %% tin:group lane
+      ambiguous["Ambiguous dispatch<br/>Re-read · never automatically retry"]:::step
+      unknown["Unknown outcome<br/>Blocks this recipient only"]:::ghost
+    end
+  end
+  ledger[("Postgres · actor dispatch ledger<br/>Actor-wide spacing · daily caps · in-flight fence. Every preflight and dispatch reads the same ledger.")]:::store
+  window_a --> preflight
+  preflight --> dispatch
+  dispatch --> sent_a
+  sent_a --> delay_a
+  delay_a --> touch_two
+  touch_two --> delay_b
+  delay_b --> touch_three
+  window_b --> touch_b
+  touch_b --> reply
+  reply -.->|reply signal| cancel_two
+  cancel_two -.->|cancel future touches| cancel_three
+  ambiguous --> unknown

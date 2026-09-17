@@ -1,0 +1,43 @@
+{
+  "name": "tin-lite-ui-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:raw-file-security": "node --test web/raw-file-security.browser.test.js",
+    "test:chat-browser": "node --test web/chat.browser.test.js",
+    "test:fonts-browser": "node --test web/fonts.browser.test.js",
+    "test:run-payment-card-browser": "node --test web/run-payment-card.browser.test.js",
+    "test:connections-browser": "node --test web/project-connections.browser.test.js",
+    "test:auth-browser": "node --test web/auth.browser.test.js web/mcp-consent.browser.test.js web/app-domain.browser.test.js",
+    "test:project-menu-browser": "node --test web/project-menu.browser.test.js",
+    "test:project-delete-browser": "node --test web/project-delete.browser.test.js",
+    "test:workflow-review-browser": "node --test web/workflow-review.browser.test.js",
+    "test:content-delivery-browser": "node --test web/content-delivery.browser.test.js",
+    "test:style-browser": "node --test web/style-capture.browser.test.js",
+    "test:content-draft-browser": "node --test web/content-draft.browser.test.js",
+    "test:billing-browser": "node --test web/billing.browser.test.js",
+    "test:json-viewer": "node --test web/json-viewer.test.js web/json-viewer.browser.test.js",
+    "test:content-plan-browser": "node --test web/content-plan.browser.test.js web/content-plan-page.browser.test.js",
+    "build:comparison": "esbuild web/output-comparison.js --bundle --format=iife --global-name=TinOutputComparison --minify --platform=browser --target=es2022 --outfile=src/tin_lite/static/output-comparison.js",
+    "check:comparison": "node --test web/output-comparison.test.js web/output-comparison-page.test.js && npm run build:comparison && git diff --exit-code -- src/tin_lite/static/output-comparison.js",
+    "test:comparison-browser": "node --test web/output-comparison.browser.test.js",
+    "build:files-tree": "esbuild web/files-tree-entry.js --bundle --format=iife --minify --platform=browser --target=es2022 --outfile=src/tin_lite/static/pierre-trees.js",
+    "build:diagrams": "node scripts/build_diagrams.mjs",
+    "test:diagrams-browser": "node --test web/diagram-renderer.browser.test.js",
+    "test:diagram-viewport": "node --test web/diagram-viewport.browser.test.js",
+    "review:diagrams": "node scripts/review_diagrams.mjs",
+    "check:diagrams": "node --test web/diagram-renderer.test.js && npm run build:diagrams && git diff --exit-code -- src/tin_lite/static/diagram-renderer.js src/tin_lite/static/diagram-routing.wasm"
+  },
+  "dependencies": {
+    "@pierre/trees": "1.0.0-beta.6",
+    "beautiful-mermaid": "1.1.3",
+    "diff": "9.0.0",
+    "elkjs": "0.11.1",
+    "libavoid-js": "0.5.0-beta.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9",
+    "linkedom": "0.18.13",
+    "playwright": "1.63.0"
+  }
+}

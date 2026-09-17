@@ -1,0 +1,803 @@
+{
+  "events": [
+    {
+      "eventId": "1",
+      "eventTime": "2026-09-16T03:40:50.046897119Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_STARTED",
+      "version": "102402",
+      "taskId": "51816595",
+      "workflowExecutionStartedEventAttributes": {
+        "workflowType": {
+          "name": "workflow.code"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSI="
+            }
+          ]
+        },
+        "workflowTaskTimeout": "10s",
+        "originalExecutionRunId": "01a0a84d-8dfe-7dac-b5c7-7dfc56db0f96",
+        "identity": "fixture-worker",
+        "firstExecutionRunId": "01a0a84d-8dfe-7dac-b5c7-7dfc56db0f96",
+        "attempt": 1,
+        "firstWorkflowTaskBackoff": "0s",
+        "workflowId": "workflow.code:c9959a32-6c43-4ac8-a226-90e0f77ecad5",
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "2",
+      "eventTime": "2026-09-16T03:40:50.046982364Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51816596",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "3",
+      "eventTime": "2026-09-16T03:40:50.061547363Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51816601",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "2",
+        "identity": "fixture-worker",
+        "requestId": "62d490ac-b2db-4cb6-a89b-2bf7d3aa5e5a",
+        "historySizeBytes": "379",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "4",
+      "eventTime": "2026-09-16T03:40:50.193016163Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51816605",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "2",
+        "startedEventId": "3",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {
+          "coreUsedFlags": [
+            1,
+            2,
+            3
+          ],
+          "sdkName": "temporal-python",
+          "sdkVersion": "1.32.0"
+        },
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "5",
+      "eventTime": "2026-09-16T03:40:50.193107387Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51816606",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "1",
+        "activityType": {
+          "name": "resolve_codex_project"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a-trusted",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSI="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "60s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "4",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2.0,
+          "maximumInterval": "100s",
+          "maximumAttempts": 5
+        },
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "6",
+      "eventTime": "2026-09-16T03:40:50.204982299Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51816613",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "5",
+        "identity": "fixture-worker",
+        "requestId": "37395d3b-aac1-4f1a-bd6a-01bcbb113af3",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "7",
+      "eventTime": "2026-09-16T03:40:50.229232050Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51816614",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "IjAwYmUyYzIxLWYwMTEtNGQyMi05MmIyLWE4NjEzYjQyM2VkZCI="
+            }
+          ]
+        },
+        "scheduledEventId": "5",
+        "startedEventId": "6",
+        "identity": "fixture-worker"
+      }
+    },
+    {
+      "eventId": "8",
+      "eventTime": "2026-09-16T03:40:50.229255451Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51816615",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "9",
+      "eventTime": "2026-09-16T03:40:50.237771484Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51816619",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "8",
+        "identity": "fixture-worker",
+        "requestId": "0e3d45f2-a3c0-48c8-87c8-8cb51218b6b2",
+        "historySizeBytes": "1249",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "10",
+      "eventTime": "2026-09-16T03:40:50.258317759Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51816623",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "8",
+        "startedEventId": "9",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "11",
+      "eventTime": "2026-09-16T03:40:50.258432112Z",
+      "eventType": "EVENT_TYPE_START_CHILD_WORKFLOW_EXECUTION_INITIATED",
+      "version": "102402",
+      "taskId": "51816624",
+      "startChildWorkflowExecutionInitiatedEventAttributes": {
+        "namespace": "default",
+        "workflowId": "tin.project-codex:00be2c21-f011-4d22-92b2-a8613b423edd",
+        "workflowType": {
+          "name": "tin.project_codex_execution"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "eyJraW5kIjoiY29kZSIsInJ1bl9pZCI6ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSIsInR1cm5fbnVtYmVyIjoiMSJ9"
+            }
+          ]
+        },
+        "workflowRunTimeout": "0s",
+        "workflowTaskTimeout": "10s",
+        "parentClosePolicy": "PARENT_CLOSE_POLICY_REQUEST_CANCEL",
+        "workflowTaskCompletedEventId": "10",
+        "workflowIdReusePolicy": "WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE",
+        "header": {},
+        "namespaceId": "00000000-0000-4000-8000-000000000001",
+        "inheritBuildId": true,
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "12",
+      "eventTime": "2026-09-16T03:40:50.275673045Z",
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_STARTED",
+      "version": "102402",
+      "taskId": "51816627",
+      "childWorkflowExecutionStartedEventAttributes": {
+        "namespace": "default",
+        "initiatedEventId": "11",
+        "workflowExecution": {
+          "workflowId": "tin.project-codex:00be2c21-f011-4d22-92b2-a8613b423edd",
+          "runId": "01a0a84d-8edb-755e-86d4-a04e5bac644c"
+        },
+        "workflowType": {
+          "name": "tin.project_codex_execution"
+        },
+        "header": {},
+        "namespaceId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "eventId": "13",
+      "eventTime": "2026-09-16T03:40:50.275682271Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51816628",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "14",
+      "eventTime": "2026-09-16T03:40:50.284098252Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51816633",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "13",
+        "identity": "fixture-worker",
+        "requestId": "3122cb37-47eb-4b26-9069-40716a990ea3",
+        "historySizeBytes": "2177",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "15",
+      "eventTime": "2026-09-16T03:40:50.303940380Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51816637",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "13",
+        "startedEventId": "14",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "16",
+      "eventTime": "2026-09-16T03:41:31.613591858Z",
+      "eventType": "EVENT_TYPE_CHILD_WORKFLOW_EXECUTION_COMPLETED",
+      "version": "102402",
+      "taskId": "51817055",
+      "childWorkflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "namespace": "default",
+        "workflowExecution": {
+          "workflowId": "tin.project-codex:00be2c21-f011-4d22-92b2-a8613b423edd",
+          "runId": "01a0a84d-8edb-755e-86d4-a04e5bac644c"
+        },
+        "workflowType": {
+          "name": "tin.project_codex_execution"
+        },
+        "initiatedEventId": "11",
+        "startedEventId": "12",
+        "namespaceId": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "eventId": "17",
+      "eventTime": "2026-09-16T03:41:31.613601516Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817056",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "18",
+      "eventTime": "2026-09-16T03:41:31.621744278Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817060",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "17",
+        "identity": "fixture-worker",
+        "requestId": "a098abc3-0f87-4e12-9176-488ebd6764a2",
+        "historySizeBytes": "2799",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "19",
+      "eventTime": "2026-09-16T03:41:31.640942343Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817064",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "17",
+        "startedEventId": "18",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "20",
+      "eventTime": "2026-09-16T03:41:31.641006644Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817065",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "2",
+        "activityType": {
+          "name": "publish_code_workflow"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a-trusted",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSI="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "300s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "19",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2.0,
+          "maximumInterval": "100s",
+          "maximumAttempts": 5
+        },
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "21",
+      "eventTime": "2026-09-16T03:41:31.653314791Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817089",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "20",
+        "identity": "fixture-worker",
+        "requestId": "24f742d5-bfd5-4a1a-a9c0-de1aff79b310",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "22",
+      "eventTime": "2026-09-16T03:41:36.425198231Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817090",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "scheduledEventId": "20",
+        "startedEventId": "21",
+        "identity": "fixture-worker"
+      }
+    },
+    {
+      "eventId": "23",
+      "eventTime": "2026-09-16T03:41:36.425213718Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817091",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "24",
+      "eventTime": "2026-09-16T03:41:36.432819057Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817095",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "23",
+        "identity": "fixture-worker",
+        "requestId": "3998069d-7019-4499-926a-ec0ca89c008c",
+        "historySizeBytes": "3605",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "25",
+      "eventTime": "2026-09-16T03:41:36.454555600Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817099",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "23",
+        "startedEventId": "24",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "26",
+      "eventTime": "2026-09-16T03:41:36.454636345Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817100",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "3",
+        "activityType": {
+          "name": "review_code_workflow"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a-trusted",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSI="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "60s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "25",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2.0,
+          "maximumInterval": "100s",
+          "maximumAttempts": 5
+        },
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "27",
+      "eventTime": "2026-09-16T03:41:36.465988600Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817106",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "26",
+        "identity": "fixture-worker",
+        "requestId": "6c5908e2-25c6-4d7d-8978-7dab2574f286",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "28",
+      "eventTime": "2026-09-16T03:41:36.520406776Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817107",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ZmFsc2U="
+            }
+          ]
+        },
+        "scheduledEventId": "26",
+        "startedEventId": "27",
+        "identity": "fixture-worker"
+      }
+    },
+    {
+      "eventId": "29",
+      "eventTime": "2026-09-16T03:41:36.520423317Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817108",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "30",
+      "eventTime": "2026-09-16T03:41:36.528590693Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817112",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "29",
+        "identity": "fixture-worker",
+        "requestId": "9280f76c-3810-421e-ad60-35b4f03503e2",
+        "historySizeBytes": "4415",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "31",
+      "eventTime": "2026-09-16T03:41:36.547114749Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817116",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "29",
+        "startedEventId": "30",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "32",
+      "eventTime": "2026-09-16T03:41:36.547177135Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817117",
+      "activityTaskScheduledEventAttributes": {
+        "activityId": "4",
+        "activityType": {
+          "name": "project_code_workflow"
+        },
+        "taskQueue": {
+          "name": "tin-lite-checkpoint-a-trusted",
+          "kind": "TASK_QUEUE_KIND_NORMAL"
+        },
+        "header": {},
+        "input": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "anNvbi9wbGFpbg=="
+              },
+              "data": "ImM5OTU5YTMyLTZjNDMtNGFjOC1hMjI2LTkwZTBmNzdlY2FkNSI="
+            }
+          ]
+        },
+        "scheduleToCloseTimeout": "0s",
+        "scheduleToStartTimeout": "0s",
+        "startToCloseTimeout": "60s",
+        "heartbeatTimeout": "0s",
+        "workflowTaskCompletedEventId": "31",
+        "retryPolicy": {
+          "initialInterval": "1s",
+          "backoffCoefficient": 2.0,
+          "maximumInterval": "100s",
+          "maximumAttempts": 5
+        },
+        "priority": {}
+      }
+    },
+    {
+      "eventId": "33",
+      "eventTime": "2026-09-16T03:41:36.556026763Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817123",
+      "activityTaskStartedEventAttributes": {
+        "scheduledEventId": "32",
+        "identity": "fixture-worker",
+        "requestId": "9b464f0a-9c48-4a12-9228-9e6c7659b76b",
+        "attempt": 1,
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "34",
+      "eventTime": "2026-09-16T03:41:36.624970325Z",
+      "eventType": "EVENT_TYPE_ACTIVITY_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817124",
+      "activityTaskCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "scheduledEventId": "32",
+        "startedEventId": "33",
+        "identity": "fixture-worker"
+      }
+    },
+    {
+      "eventId": "35",
+      "eventTime": "2026-09-16T03:41:36.624985037Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_SCHEDULED",
+      "version": "102402",
+      "taskId": "51817125",
+      "workflowTaskScheduledEventAttributes": {
+        "taskQueue": {
+          "name": "658630@tin-lite-switchboard-8e27b20c6eda4ead817bc31e82ced6ad",
+          "kind": "TASK_QUEUE_KIND_STICKY",
+          "normalName": "tin-lite-checkpoint-a"
+        },
+        "startToCloseTimeout": "10s",
+        "attempt": 1
+      }
+    },
+    {
+      "eventId": "36",
+      "eventTime": "2026-09-16T03:41:36.633417076Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_STARTED",
+      "version": "102402",
+      "taskId": "51817129",
+      "workflowTaskStartedEventAttributes": {
+        "scheduledEventId": "35",
+        "identity": "fixture-worker",
+        "requestId": "893a1e09-fa5a-46ff-b626-510945e19998",
+        "historySizeBytes": "5220",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        }
+      }
+    },
+    {
+      "eventId": "37",
+      "eventTime": "2026-09-16T03:41:36.651549515Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_TASK_COMPLETED",
+      "version": "102402",
+      "taskId": "51817133",
+      "workflowTaskCompletedEventAttributes": {
+        "scheduledEventId": "35",
+        "startedEventId": "36",
+        "identity": "fixture-worker",
+        "workerVersion": {
+          "buildId": "fa35cea4b1fd050084c0819df5ebb732"
+        },
+        "sdkMetadata": {},
+        "meteringMetadata": {}
+      }
+    },
+    {
+      "eventId": "38",
+      "eventTime": "2026-09-16T03:41:36.651608482Z",
+      "eventType": "EVENT_TYPE_WORKFLOW_EXECUTION_COMPLETED",
+      "version": "102402",
+      "taskId": "51817134",
+      "workflowExecutionCompletedEventAttributes": {
+        "result": {
+          "payloads": [
+            {
+              "metadata": {
+                "encoding": "YmluYXJ5L251bGw="
+              }
+            }
+          ]
+        },
+        "workflowTaskCompletedEventId": "37"
+      }
+    }
+  ]
+}

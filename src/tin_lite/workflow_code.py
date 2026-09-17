@@ -1,0 +1,303 @@
+"""Bounded code contract. Customer source is data until it reaches E2B."""
+
+from __future__ import annotations
+
+import ast
+import json
+import re
+from dataclasses import dataclass
+
+from tin_lite.project_files import safe_project_file_path
+from tin_lite.workflow_packages import relative_path, validate_package_input_schema
+
+EXECUTOR = "workflow.code"
+RUNTIME = "python3.12.8-stdlib-v1"
+POLICY = "bounded-code-v1"
+MODEL_POLICY = "managed-code-model-v1"
+# Explicit supported routes, using the existing trusted adapters and price card.
+# A configured provider credential alone never admits an unpriced model.
+MODEL_TARGETS = frozenset({("openai", "gpt-5.6-luna"), ("openai", "gpt-6-astra")})
+MAX_FILE_BYTES = 64_000
+MAX_PACKAGE_BYTES = 256_000
+MAX_OUTPUT_BYTES = 64_000
+
+
+@dataclass(frozen=True)
+class CodeModelRoute:
+    name: str
+    provider: str
+    model: str
+    max_calls: int
+    max_input_bytes: int
+    max_output_tokens: int
+
+    @property
+    def router_key(self):
+        return f"workflow.code:{self.provider}:{self.model}"
+
+
+def model_routes(value):
+    if not isinstance(value, dict) or len(value) > 4:
+        raise ValueError("model_routes must declare at most four named routes")
+    routes = []
+    for name, route in value.items():
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", name)
+            or not isinstance(route, dict)
+        ):
+            raise ValueError("invalid code model route")
+        if (
+            set(route) != {"provider", "model", "max_calls", "max_input_bytes", "max_output_tokens"}
+            or not isinstance(route["provider"], str)
+            or not isinstance(route["model"], str)
+            or (route["provider"], route["model"]) not in MODEL_TARGETS
+        ):
+            raise ValueError("unsupported or unpriced code model route")
+        for field, lower, upper in (
+            ("max_calls", 1, 4),
+            ("max_input_bytes", 1024, 32_000),
+            ("max_output_tokens", 64, 4096),
+        ):
+            if type(route[field]) is not int or not lower <= route[field] <= upper:
+                raise ValueError(f"model {field} must be {lower}-{upper}")
+        routes.append(CodeModelRoute(name=name, **route))
+    if sum(r.max_calls for r in routes) > 8:
+        raise ValueError("code workflows allow at most eight managed model calls")
+    return tuple(routes)
+
+
+@dataclass(frozen=True)
+class CodeSpec:
+    entrypoint: str
+    files: tuple[str, ...]
+    timeout_seconds: int
+    output_path: str
+    media_type: str
+    max_bytes: int
+    model_routes: tuple[CodeModelRoute, ...] = ()
+    services: tuple = ()
+
+    @property
+    def policy(self):
+        return MODEL_POLICY if self.model_routes else POLICY
+
+
+def validate_code_definition(definition) -> CodeSpec:
+    if definition.get("executor") != EXECUTOR or set(definition) - {
+        "key",
+        "title",
+        "description",
+        "version",
+        "executor",
+        "kind",
+        "input_schema",
+        "code",
+        "human_review",
+        "schedule_modes",
+        "system",
+        "prerequisites",
+        "integration_requirements",
+    }:
+        raise ValueError("unsupported code workflow fields or capabilities")
+    if definition.get("kind", "workflow") != "workflow":
+        raise ValueError("code packages define workflows")
+    modes = definition.get("schedule_modes")
+    if (
+        not isinstance(modes, list)
+        or not all(isinstance(mode, str) for mode in modes)
+        or "on_demand" not in modes
+        or len(modes) != len(set(modes))
+        or set(modes) - {"on_demand", "daily", "weekly"}
+    ):
+        raise ValueError("code schedules require on_demand and optional daily/weekly modes")
+    validate_package_input_schema(definition.get("input_schema", {}))
+    code = definition.get("code")
+    if (
+        not isinstance(code, dict)
+        or set(code) - {"model_routes", "services"}
+        != {"runtime", "entrypoint", "files", "timeout_seconds", "output"}
+        or code["runtime"] != RUNTIME
+    ):
+        raise ValueError("unsupported code runtime contract")
+    files = code["files"]
+    if not isinstance(files, list) or not 1 <= len(files) <= 32:
+        raise ValueError("code packages require 1-32 declared files")
+    for path in files:
+        relative_path(path)
+        if not safe_project_file_path(path) or path == "workflow.json":
+            raise ValueError("unsafe code resource path")
+    if len(set(files)) != len(files):
+        raise ValueError("duplicate code resource")
+    entrypoint = relative_path(code["entrypoint"])
+    if entrypoint not in files or not entrypoint.endswith(".py"):
+        raise ValueError("entrypoint must be a declared Python file")
+    timeout = code["timeout_seconds"]
+    if type(timeout) is not int or not 1 <= timeout <= 60:
+        raise ValueError("code timeout must be 1-60 seconds")
+    output = code["output"]
+    if not isinstance(output, dict) or set(output) != {"kind", "path", "media_type", "max_bytes"}:
+        raise ValueError("code output must declare one bounded project artifact")
+    path = relative_path(output["path"])
+    if (
+        output["kind"] != "project.artifact"
+        or not safe_project_file_path(path)
+        or path == "wiki/INDEX.md"
+        or path.split("/")[0] in {".tin-lite", "procedures", "registry", "workflow_packages"}
+        or output["media_type"]
+        not in {"text/markdown", "text/plain", "text/csv", "application/json"}
+    ):
+        raise ValueError("code output must be an ordinary project text artifact")
+    maximum = output["max_bytes"]
+    if type(maximum) is not int or not 1 <= maximum <= MAX_OUTPUT_BYTES:
+        raise ValueError("code output exceeds its byte limit")
+    return CodeSpec(
+        entrypoint,
+        tuple(files),
+        timeout,
+        path,
+        output["media_type"],
+        maximum,
+        model_routes(code.get("model_routes", {})),
+        service_bindings(code.get("services", {}), definition.get("integration_requirements")),
+    )
+
+
+@dataclass(frozen=True)
+class CodeService:
+    name: str
+    provider_key: str
+    capabilities: tuple[str, ...]
+    max_calls: int
+    max_response_bytes: int
+
+
+def service_bindings(value, requirements):
+    from tin_lite.integrations import parse_integration_requirements
+    from tin_lite.project_connections import CUSTOM_KEY
+
+    allowed = {
+        "analytics.gsc": {"sites.list", "search_analytics.read"},
+        "workspace.google": {"gmail.messages.read", "calendar.events.read"},
+        "infra.github": {"repositories.list"},
+    }
+    parsed = {r.provider_key: r for r in parse_integration_requirements(requirements)}
+    if not isinstance(value, dict) or len(value) > 4:
+        raise ValueError("declare at most four code services")
+    result = []
+    for name, entry in value.items():
+        if (
+            not isinstance(name, str)
+            or not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", name)
+            or not isinstance(entry, dict)
+            or set(entry) != {"provider_key", "max_calls", "max_response_bytes"}
+        ):
+            raise ValueError("invalid code service binding")
+        provider = entry["provider_key"]
+        requirement = parsed.get(provider) if isinstance(provider, str) else None
+        if (
+            requirement is None
+            or not requirement.required
+            or not set(requirement.capabilities)
+            <= (
+                {"http.read", "http.write"}
+                if CUSTOM_KEY.fullmatch(provider)
+                else allowed.get(provider, set())
+            )
+        ):
+            raise ValueError("service needs explicit supported required integration capabilities")
+        for field, low, high in (("max_calls", 1, 8), ("max_response_bytes", 1024, 64_000)):
+            if type(entry[field]) is not int or not low <= entry[field] <= high:
+                raise ValueError(f"service {field} must be {low}-{high}")
+        result.append(
+            CodeService(
+                name,
+                provider,
+                requirement.capabilities,
+                entry["max_calls"],
+                entry["max_response_bytes"],
+            )
+        )
+    if (
+        {s.provider_key for s in result} != set(parsed)
+        or len({s.provider_key for s in result}) != len(result)
+        or sum(s.max_calls for s in result) > 8
+    ):
+        raise ValueError(
+            "each dependency needs one binding; at most eight service calls are allowed"
+        )
+    return tuple(result)
+
+
+def validate_code_resources(spec, files):
+    if set(files) != set(spec.files) or sum(map(len, files.values())) > MAX_PACKAGE_BYTES:
+        raise ValueError("code package resources exceed their contract")
+    for path, raw in files.items():
+        if not raw or len(raw) > MAX_FILE_BYTES:
+            raise ValueError("code resource exceeds its byte limit")
+        text = raw.decode("utf-8")
+        if path.endswith(".py"):
+            # Parse only. Never import, evaluate or execute uploaded source here.
+            try:
+                ast.parse(text, filename=path)
+            except SyntaxError:
+                raise ValueError(f"invalid Python syntax in {path}") from None
+
+
+async def load_code_package(*, storage, repo_id, commit_sha, definition_path):
+    from tin_lite.workflow_packages import load_workflow_source
+
+    source = await load_workflow_source(
+        storage=storage, repo_id=repo_id, commit_sha=commit_sha, definition_path=definition_path
+    )
+    if source.package_format is None:
+        raise ValueError("code workflows require the versioned package layout")
+    spec = validate_code_definition(source.definition)
+    files = {
+        path: await storage.read_workflow_resource(
+            repo_id=repo_id, commit_sha=commit_sha, path=source.resource_paths[path]
+        )
+        for path in spec.files
+    }
+    validate_code_resources(spec, files)
+    return source.definition, spec, files
+
+
+def validate_code_result(raw: bytes, spec: CodeSpec) -> bytes:
+    if len(raw) > spec.max_bytes * 6 + 2048:
+        raise ValueError("code result envelope exceeds its bound")
+    value = json.loads(raw)
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"path", "content"}
+        or value["path"] != spec.output_path
+        or not isinstance(value["content"], str)
+    ):
+        raise ValueError("code result must contain the declared path and text content")
+    content = value["content"].encode("utf-8")
+    if not content.strip() or len(content) > spec.max_bytes or b"\x00" in content:
+        raise ValueError("code artifact is empty, invalid, or exceeds its byte limit")
+    if spec.media_type == "application/json":
+        json.loads(content)
+    return content
+
+
+def example_files(key="custom.order_report", *, model_steps=False, connections=False):
+    """The shipped Tin-owned example and its private copy use the identical contract."""
+    from pathlib import Path
+
+    root = Path(__file__).with_name(
+        "code_connection_example"
+        if connections
+        else "code_model_example"
+        if model_steps
+        else "code_example"
+    )
+    manifest = json.loads((root / "workflow.json").read_bytes())
+    manifest["definition"]["key"] = key
+    spec = validate_code_definition(manifest["definition"])
+    prefix = f"workflow_packages/{key}/"
+    return {
+        prefix + "workflow.json": json.dumps(manifest, indent=2) + "\n",
+        **{prefix + path: (root / path).read_text() for path in spec.files},
+    }

@@ -1,0 +1,15 @@
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.DS_Store
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+/skills/
+node_modules/
+**/fk-grotesk*
+/private-fonts/

@@ -1,0 +1,43 @@
+/* Identity screens use the same optional licensed sans as the product shell. */
+@font-face {
+  font-family: "Tin Auth Mono";
+  src: url("/assets/fonts/geist-mono-regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+.auth-root {
+  --sans: var(--brand-sans);
+  --mono: "Tin Auth Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--sans);
+}
+
+/* Clerk's input/button primitives also emit styles; keep Paper controls exact. */
+.auth-root .cl-form:not(:has(.cl-otpCodeField)) { gap: 14px; }
+.auth-root .cl-formFieldInput {
+  height: 46px;
+  min-height: 46px;
+  border: 1px solid rgb(var(--ink-rgb) / 25%);
+  border-radius: 4px;
+  box-shadow: none;
+}
+.auth-root .cl-formFieldInput:focus {
+  border-color: var(--accent-deep);
+  box-shadow: 0 0 0 1px var(--accent-deep);
+}
+.auth-root .cl-formButtonPrimary {
+  margin-top: 0;
+  height: 46px;
+  border-radius: 999px;
+  box-shadow: none !important;
+}
+.auth-root .cl-buttonArrowIcon { display: none; }
+.auth-root .cl-footerActionLink { color: var(--accent-text); }
+.auth-root .cl-footerActionLink:hover { color: var(--accent-deep); }
+.auth-root .cl-main::after { text-align: left; }
+
+/* Code step rhythm (Paper 27): the resend row sits 16px under the boxes and
+   "Use another method" 40px under that. Clerk centers that action inside a
+   wrapper and restyles its margin after us, so the space goes on the wrapper. */
+.auth-root .cl-main > div:has(> .cl-footerAction__alternativeMethods) { padding-top: 22px !important; }
+.auth-root .cl-footer { margin-top: 0; }

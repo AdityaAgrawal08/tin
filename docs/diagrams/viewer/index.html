@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Tin diagrams</title>
+  <link rel="stylesheet" href="/viewer.css">
+  <script src="/viewer.js" defer></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="https://github.com/tin-computer/tin-lite/blob/main/README.md#how-it-is-built">Tin / Diagrams</a>
+    <nav aria-label="Diagram">
+      <a href="#how-it-is-built">How it is built</a>
+      <a href="#one-run">One run</a>
+    </nav>
+    <button id="theme" aria-label="Switch color theme">Theme</button>
+  </header>
+  <main id="viewport" tabindex="0" aria-label="Interactive diagram. Drag to pan, pinch or scroll to zoom. Arrow keys pan; plus and minus zoom; zero fits the diagram.">
+    <img id="diagram" draggable="false" alt="" hidden>
+    <p id="loading" role="status">Loading diagram…</p>
+  </main>
+  <footer>
+    <span class="hint">Drag to move · Scroll or pinch to zoom</span>
+    <div class="controls" aria-label="Diagram controls">
+      <button id="out" aria-label="Zoom out">−</button>
+      <output id="scale" aria-label="Zoom level">100%</output>
+      <button id="in" aria-label="Zoom in">+</button>
+      <button id="fit">Fit</button>
+      <button id="actual" title="Show at original size">100%</button>
+      <button id="fullscreen">Fullscreen</button>
+      <a id="download" download>SVG ↓</a>
+    </div>
+  </footer>
+</body>
+</html>

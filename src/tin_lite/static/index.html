@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en" data-billing-enabled="{{BILLING_ENABLED}}" data-app-url="{{APP_URL}}" data-mcp-url="{{MCP_URL}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <script>
+      (() => {
+        let preference = "system";
+        try {
+          const stored = window.localStorage.getItem("tin-lite:theme");
+          if (["system", "light", "dark"].includes(stored)) preference = stored;
+        } catch (_error) {}
+        const theme = preference === "system"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : preference;
+        document.documentElement.dataset.themePreference = preference;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="color-scheme"]').content = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#141210" : "#f7f5ef";
+      })();
+    </script>
+    <link rel="canonical" href="{{APP_URL}}/" />
+    <title>Tin</title>
+    <link rel="icon" href="/assets/tin-favicon.svg?v={{ASSET_VERSION}}" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/app.css?v={{ASSET_VERSION}}-project-cleanup" />
+    <link rel="stylesheet" href="/assets/auth.css?v={{ASSET_VERSION}}" />
+    <!--PRIVATE_FONTS_STYLESHEET-->
+    <script
+      defer
+      crossorigin="anonymous"
+      src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/ui@1/dist/ui.browser.js"
+    ></script>
+    <script
+      defer
+      crossorigin="anonymous"
+      data-clerk-publishable-key="{{CLERK_PUBLISHABLE_KEY}}"
+      src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
+    ></script>
+    <script src="/assets/pierre-trees.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/diagram-loader.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/diagram-viewport.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/markdown-viewer.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/delimited-viewer.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/json-viewer.js?v={{ASSET_VERSION}}" defer></script>
+    <link rel="stylesheet" href="/assets/output-comparison.css?v={{ASSET_VERSION}}" />
+    <script src="/assets/output-comparison-page.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/theme.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/code-workflow-setup.js?v={{ASSET_VERSION}}" defer></script>
+    <link rel="stylesheet" href="/assets/code-workflow-setup.css?v={{ASSET_VERSION}}" />
+    <link rel="stylesheet" href="/assets/billing.css?v={{ASSET_VERSION}}">
+    <script src="/assets/run-payment-card.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/billing.js?v={{ASSET_VERSION}}-ledger" defer></script>
+    <script src="/assets/content-plan.js?v={{ASSET_VERSION}}" defer></script>
+    <link rel="stylesheet" href="/assets/workflow-review.css?v={{ASSET_VERSION}}">
+    <script src="/assets/workflow-review.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/content-delivery.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/style-capture.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/content-draft.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/auth-appearance.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/project-connections.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/app.js?v={{ASSET_VERSION}}-project-cleanup" defer></script>
+  </head>
+  <body>
+    <main id="auth-root" class="auth-root" data-auth-return="{{AUTH_RETURN_URL}}" data-auth-flow="{{AUTH_FLOW}}" hidden>
+      <header class="auth-brand">
+        <img src="/assets/tin-logotype-ink.png" alt="Tin" />
+      </header>
+      <section class="auth-stage" aria-live="polite">
+        <div id="auth-view" class="auth-view"></div>
+      </section>
+      <footer class="auth-footer">
+        <a href="https://tin.computer">tin.computer</a>
+        <span></span>
+        <nav aria-label="Legal">
+          <a href="https://tin.computer/legal/terms">terms</a>
+          <a href="https://tin.computer/legal/privacy">privacy</a>
+        </nav>
+      </footer>
+    </main>
+    <div id="app-shell" class="app-shell" hidden>
+      <aside class="rail" aria-label="Primary navigation">
+        <div class="wordmark">
+          <img src="/assets/tin-logotype-ink.png" alt="Tin" />
+        </div>
+
+        <div class="project-menu-shell">
+          <button
+            id="project-switcher"
+            class="project-switcher"
+            type="button"
+            aria-label="Current project"
+            aria-haspopup="dialog"
+            aria-controls="project-menu"
+            aria-expanded="false"
+          >
+            <span>
+              <strong id="project-name">Loading…</strong>
+              <small id="project-summary">Connecting to live state</small>
+            </span>
+            <svg aria-hidden="true" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" /></svg>
+          </button>
+          <div id="project-menu" class="project-menu" role="dialog" aria-label="Projects and access" hidden></div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item is-active" type="button" data-view="workflows">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <circle cx="3.5" cy="8" r="1.8" />
+              <circle cx="12.5" cy="3.5" r="1.8" />
+              <circle cx="12.5" cy="12.5" r="1.8" />
+              <path d="M5.2 7.2l5.6-3M5.2 8.8l5.6 3" />
+            </svg>
+            <span>System</span>
+            <small id="workflow-count">—</small>
+          </button>
+          <button class="nav-item" type="button" data-view="chat">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
+            </svg>
+            <span>Chat</span>
+          </button>
+          <button class="nav-item" type="button" data-view="decisions">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <path d="M3 2.5h10v11H3zM5.5 6h5M5.5 9h3" />
+            </svg>
+            <span>Decisions</span>
+            <small id="decision-count"></small>
+          </button>
+          <button class="nav-item" type="button" data-view="files">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <path d="M2 4.5h4l1.4 1.5H14v6.5H2z" />
+            </svg>
+            <span>Files</span>
+          </button>
+          <button class="nav-item" type="button" data-view="integrations">
+            <svg aria-hidden="true" viewBox="0 0 16 16">
+              <rect x="2.5" y="2.5" width="4.6" height="4.6" rx="1" />
+              <rect x="8.9" y="2.5" width="4.6" height="4.6" rx="1" />
+              <rect x="2.5" y="8.9" width="4.6" height="4.6" rx="1" />
+              <rect x="8.9" y="8.9" width="4.6" height="4.6" rx="1" />
+            </svg>
+            <span>Integrations</span>
+          </button>
+        </nav>
+
+        <div class="rail-spacer"></div>
+
+        <div class="agent-rail" id="agent-rail">
+          <button id="agent-rail-toggle" class="agent-rail-toggle" type="button" aria-expanded="false">
+            <span class="agent-rail-heading">
+              <svg class="agent-rail-terminal" aria-hidden="true" viewBox="0 0 14 14">
+                <path d="M2 3l4 4-4 4M7 11h5" />
+              </svg>
+              <strong>Use your coding agent</strong>
+              <svg class="agent-rail-close" aria-hidden="true" viewBox="0 0 10 10">
+                <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+              </svg>
+            </span>
+            <span class="agent-rail-summary">Claude Code · Codex · API</span>
+          </button>
+          <div id="agent-rail-body" class="agent-rail-body" hidden>
+            <p class="agent-rail-intro">Paste one line into your terminal. Every workflow here becomes a tool your agent can call.</p>
+            <div class="agent-rail-tabs" role="tablist" aria-label="Coding agent">
+              <button type="button" role="tab" data-agent-tab="claude" aria-selected="true">Claude Code</button>
+              <button type="button" role="tab" data-agent-tab="codex" aria-selected="false">Codex</button>
+              <button type="button" role="tab" data-agent-tab="api" aria-selected="false">API</button>
+            </div>
+            <pre id="agent-command"></pre>
+            <div class="agent-rail-actions">
+              <button id="copy-agent-command" type="button">Copy</button>
+              <a href="/docs" target="_blank" rel="noreferrer">Docs →</a>
+            </div>
+            <div class="agent-rail-status">
+              <span class="agent-connection-dot" aria-hidden="true"></span>
+              <span id="agent-last-used">not connected yet</span>
+            </div>
+            <div class="agent-rail-footer">27 tools · workflows, runs, files, integrations</div>
+          </div>
+        </div>
+
+        <footer class="rail-footer">
+          <img id="user-avatar" class="avatar" alt="" />
+          <span id="user-name">Tin user</span>
+          <div class="appearance-control" role="group" aria-label="Appearance">
+            <button type="button" data-theme-preference="system" aria-pressed="false" aria-label="Use system appearance" title="System">
+              <svg class="appearance-system" aria-hidden="true" viewBox="0 0 11 11">
+                <circle cx="5.5" cy="5.5" r="4.5" />
+                <path d="M5.5 1 A4.5 4.5 0 0 0 5.5 10 Z" />
+              </svg>
+            </button>
+            <button type="button" data-theme-preference="light" aria-pressed="false" aria-label="Use light appearance" title="Light">
+              <svg aria-hidden="true" viewBox="0 0 11 11">
+                <circle cx="5.5" cy="5.5" r="2.35" />
+                <path d="M5.5.5v1.4m0 7.2v1.4M.5 5.5h1.4m7.2 0h1.4M2 2l1 1m5 5 1 1m0-7-1 1M3 8 2 9" />
+              </svg>
+            </button>
+            <button type="button" data-theme-preference="dark" aria-pressed="false" aria-label="Use dark appearance" title="Dark">
+              <svg class="appearance-moon" aria-hidden="true" viewBox="0 0 11 11">
+                <path d="M8.9 7.7A4.3 4.3 0 0 1 3.3 2.1 4.35 4.35 0 1 0 8.9 7.7Z" />
+              </svg>
+            </button>
+          </div>
+          <button type="button" id="sign-out" class="rail-sign-out">Sign out</button>
+        </footer>
+      </aside>
+
+      <main id="main" class="main" tabindex="-1"></main>
+    </div>
+    <dialog id="integration-project-dialog" class="integration-project-dialog" aria-labelledby="integration-project-title">
+      <form id="integration-project-form" method="dialog">
+        <header>
+          <h2 id="integration-project-title">Choose a project</h2>
+          <p id="integration-project-copy">Connections belong to one Tin project.</p>
+        </header>
+        <div id="integration-project-options" class="integration-project-options" role="radiogroup" aria-label="Tin project"></div>
+        <footer>
+          <button class="button-quiet" type="button" data-cancel-integration-project>Cancel</button>
+          <button class="button" type="submit" data-confirm-integration-project>Continue</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="project-create-dialog" class="integration-project-dialog project-create-dialog" aria-labelledby="project-create-title">
+      <form id="project-create-form" method="dialog">
+        <header>
+          <h2 id="project-create-title">Create a project</h2>
+          <p id="project-create-copy">This project gets its own files, workflows, and integrations.</p>
+        </header>
+        <label class="project-create-field" for="project-create-name">
+          <span>Name</span>
+          <input id="project-create-name" class="workflow-inline-input" name="name" maxlength="80" autocomplete="off" required />
+        </label>
+        <footer>
+          <button class="button-quiet" type="button" data-cancel-project-create>Cancel</button>
+          <button class="button" type="submit" data-confirm-project-create>Create project</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="project-delete-dialog" class="integration-project-dialog project-delete-dialog" aria-labelledby="project-delete-title">
+      <form id="project-delete-form" method="dialog">
+        <header>
+          <h2 id="project-delete-title">Delete this project</h2>
+          <p id="project-delete-copy"></p>
+        </header>
+        <label class="project-create-field" for="project-delete-name">
+          <span id="project-delete-prompt">Type the project name to confirm</span>
+          <input id="project-delete-name" class="workflow-inline-input" name="confirm_name" maxlength="80" autocomplete="off" required />
+        </label>
+        <footer>
+          <button class="button-quiet" type="button" data-cancel-project-delete>Cancel</button>
+          <button class="button is-danger" type="submit" data-confirm-project-delete disabled>Delete project</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog id="project-invite-dialog" class="integration-project-dialog project-invite-dialog" aria-labelledby="project-invite-title">
+      <form id="project-invite-form" method="dialog">
+        <header>
+          <h2 id="project-invite-title">Invite someone</h2>
+          <p id="project-invite-copy">Invite a verified email address to this project.</p>
+        </header>
+        <label class="project-create-field" for="project-invite-email">
+          <span>Email</span>
+          <input id="project-invite-email" class="workflow-inline-input" name="email" type="email" maxlength="320" autocomplete="email" required />
+        </label>
+        <div id="project-invite-result" class="project-invite-result" hidden>
+          <span>Share this link</span>
+          <code id="project-invite-url"></code>
+          <button id="copy-project-invite" class="button-secondary" type="button">Copy link</button>
+        </div>
+        <footer>
+          <button class="button-quiet" type="button" data-cancel-project-invite>Close</button>
+          <button class="button" type="submit" data-create-project-invite>Create invite</button>
+        </footer>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

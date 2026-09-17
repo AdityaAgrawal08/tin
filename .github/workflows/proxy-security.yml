@@ -1,0 +1,31 @@
+name: proxy-security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "src/tin_lite/proxy_grants.py"
+      - "tests/proxy/**"
+      - "scripts/verify_forward_proxy.py"
+      - ".github/workflows/proxy-security.yml"
+  pull_request:
+    paths:
+      - "infra/**"
+      - "src/tin_lite/proxy_grants.py"
+      - "tests/proxy/**"
+      - "scripts/verify_forward_proxy.py"
+      - ".github/workflows/proxy-security.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  network-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/verify_forward_proxy.py

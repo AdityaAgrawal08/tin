@@ -1,0 +1,59 @@
+# Content planner editorial-quality slice
+
+## Outcome
+
+Develop distinct, evidence-backed buyer tasks before allocating the calendar. A six-month
+program is still a six-month program, but capacity is a ceiling, never a reason to invent
+articles. Show the number of supported briefs, unused capacity, and evidence gaps explicitly.
+
+## Implementation
+
+1. Preserve the editable `content-program-v1` file, amendment controls, saved configurations,
+   batch reservations and publication/recovery machinery. Publish a new pinned planning policy;
+   historical definitions continue to execute their original policy.
+2. Inspect at most 60 same-host public HTML pages from the frozen audit/keyword candidates.
+   Reuse the IP-pinned, redirect-bounded fetcher. Save bounded extracted text, timestamps and
+   hashes as run evidence; failures are unavailable evidence, not proof a page does not exist.
+3. One receipted model call develops a prioritized portfolio of distinct briefs. Supply all
+   retained keywords, including fallible exclusions, selected files and page excerpts. Compact
+   source aliases are resolved deterministically into original source IDs. An update must
+   identify a page actually inspected; a new-page decision must not point to an observed page.
+4. Tin owns calendar dates, capacity, identity, readiness and frozen amendment scope. Spread
+   priority-ordered briefs across the selected horizon; never ask the model to repeat these
+   bookkeeping fields. Keep every proposed brief `needs_verification`: inspecting a page is
+   not validation of product claims, demand, originality or expected SEO/AI results.
+5. Render coverage, evidence gaps, destination rationale and page-check scope in the ordinary
+   Markdown report. No new UI, schema migration, engine, schedule or generation behavior.
+
+## Verification
+
+Test source/destination binding, unavailable and hostile pages, bounded reads, duplicate
+destinations, empty portfolios, calendar allocation, old policy execution, amendment isolation,
+model/publication retries and free scheduled preparation. Run the full regression suite.
+For live verification, use an explicitly authorized test project and its successful
+audit/keyword publications, preserving the old program. Review actual briefs, intent mapping,
+   capability restraint and horizon coverage. Do not call schema success editorial acceptance.
+
+AI revisions preserve the batch placement of retained item IDs, so a brief amendment cannot
+quietly reshuffle dated work. Newly added briefs use available selected slots. Exact moves
+remain ordinary editor/file edits. Inspected model excerpts shrink to the remaining input
+budget; all source rows and selected member files are preserved, with fuller observations
+and excerpt-limit metadata retained in run evidence.
+
+The first paid editorial pilot stopped on two proposed sections for the same `/docs` page.
+The model response was saved successfully; no plan was published and no blind retry occurred.
+Same-page updates now consolidate mechanically into one bounded brief, preserving every
+section, source and verification check, recording merged IDs, and retaining the original
+response. Oversized combinations and overlap with unselected work still fail closed.
+
+Reviewing the saved output also found numerically valid references to unrelated keywords.
+The v3 policy labels aliases with their keyword/group meaning, reserves a source slot for
+the inspected destination, and binds its immutable page observation in code. The exact
+prepared input, alias mapping and compiled output schema are receipted. Historical v1/v2
+definitions remain supported; source-reference existence is never described as proof of
+semantic relevance. Paid acceptance must inspect the actual mapped queries.
+
+## Related workflows
+
+See [writing style capture](writing-style-capture.md) and
+[content generation](content-generation-implementation.md) for the subsequent authoring steps.

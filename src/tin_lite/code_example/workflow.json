@@ -1,0 +1,32 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "example.order_report",
+    "title": "Summarize fixture orders",
+    "description": "Filter fixture orders by minimum value and write a small Markdown report using ordinary Python.",
+    "version": "1.0.0",
+    "executor": "workflow.code",
+    "schedule_modes": ["on_demand"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "minimum_cents": {"type": "integer", "minimum": 0, "maximum": 100000, "default": 1000}
+      },
+      "required": ["project_id", "minimum_cents"]
+    },
+    "code": {
+      "runtime": "python3.12.8-stdlib-v1",
+      "entrypoint": "main.py",
+      "files": ["main.py", "fixtures/orders.json"],
+      "timeout_seconds": 10,
+      "output": {
+        "kind": "project.artifact",
+        "path": "reports/custom/ORDER_REPORT.md",
+        "media_type": "text/markdown",
+        "max_bytes": 8000
+      }
+    }
+  }
+}

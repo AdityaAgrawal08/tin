@@ -1,0 +1,50 @@
+graph TD
+  %% tin:composition
+  subgraph start
+    direction LR
+    %% tin:group layout
+    trigger["Trigger<br/>You · a schedule · your coding agent over MCP"]:::step
+    switchboard["Switchboard<br/>Check project membership · pin the workflow revision · start a Temporal run"]:::step
+  end
+  subgraph context
+    direction RL
+    %% tin:group layout
+    reads["Reads<br/>Project files and memory · system wiki at a pinned commit · connected data through typed adapters"]:::step
+    executor["Executor"]:::step
+  end
+  subgraph execution
+    direction LR
+    %% tin:group layout
+    trusted["Trusted step<br/>On the switchboard"]:::surface
+    sandbox["One sandbox<br/>Created for this run · destroyed when it ends"]:::surface
+  end
+  subgraph publication
+    direction LR
+    %% tin:group layout
+    commit["One commit<br/>To the project repository"]:::receipt
+    projection[("Postgres projection<br/>Run status · Activity · Files · memory")]:::store
+  end
+  whose["Whose call?"]:::step
+  subgraph outcomes
+    direction LR
+    %% tin:group layout
+    done["Done<br/>The next run reads this output"]:::receipt
+    subgraph review
+      direction TD
+      %% tin:group layout
+      decisions["Decisions<br/>Read it · approve or not now"]:::gate
+      effect["Effect leaves the machine<br/>Pull request · email · published artifact"]:::receipt
+    end
+  end
+  trigger --> switchboard
+  switchboard --> reads
+  reads --> executor
+  executor -->|procedure| sandbox
+  executor -->|text workflow| trusted
+  trusted --> commit
+  sandbox --> commit
+  commit --> projection
+  projection --> whose
+  whose -->|Tin's| done
+  whose -->|yours| decisions
+  decisions -->|approved| effect

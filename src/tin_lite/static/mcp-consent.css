@@ -1,0 +1,33 @@
+/* Paper 25–27: existing auth shell, fonts, logo, footer and paper/coal tokens. */
+.consent-view { color: var(--ink); }
+.consent-intro { margin-bottom: 28px; }
+.consent-intro h1 { margin: 0; font-size: 32px; font-weight: 400; letter-spacing: -0.02em; line-height: 38px; }
+.consent-intro p { margin: 10px 0 0; color: var(--ink-secondary); font-size: 15px; line-height: 22px; }
+.consent-view > [role="status"], #consent-sign-in > p { color: var(--ink-secondary); font-size: 14px; line-height: 21px; }
+.consent-root .cl-main::after { display: none; }
+.consent-root button[name="consented"], .consent-create {
+  display: flex; align-items: center; justify-content: center; height: 46px;
+  border: 1px solid transparent; border-radius: 999px; box-shadow: none;
+  font-family: var(--sans); font-size: 14px; font-weight: 700; line-height: 18px;
+  text-decoration: none; cursor: pointer;
+}
+.consent-root button[name="consented"][value="true"], .consent-create { color: var(--on-hot); background: var(--hot); }
+.consent-root button[name="consented"][value="true"]:hover, .consent-create:hover { background: var(--hot-hover); }
+.consent-root button[name="consented"][value="true"]:active, .consent-create:active { background: var(--hot-pressed); }
+.consent-root button[name="consented"][value="false"] {
+  color: var(--ink); background: var(--paper-card); border-color: rgb(var(--ink-rgb) / 25%); font-weight: 400;
+}
+.consent-root button[name="consented"][value="false"]:hover { background: var(--paper-well); border-color: rgb(var(--ink-rgb) / 45%); }
+.consent-root button[name="consented"]:focus-visible, .consent-root a:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 3px; }
+.consent-view .consent-sign-in-link { margin: 24px 0 0; font-size: 13px; }
+.consent-sign-in-link a, .consent-recovery button { color: var(--accent-text); font-weight: 700; text-underline-offset: 3px; }
+/* Clerk's scope list and redirect note step back; the headline above carries the why. */
+.consent-root .cl-scrollBox, .consent-root .cl-main p, .consent-root .cl-main li { color: var(--ink-muted); font-family: var(--mono); font-size: 12px; line-height: 17px; }
+.consent-recovery { margin: 22px 0 0; color: var(--ink-muted); font-size: 12px; line-height: 18px; }
+.consent-root [hidden] { display: none !important; }
+@media (max-width: 640px) { .consent-intro h1 { font-size: 28px; line-height: 34px; } }
+
+.consent-recovery button { padding: 0; border: 0; background: transparent; font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.consent-recovery button:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 3px; }
+/* Auth's mobile headline rule must not enlarge the requesting client's identity. */
+.consent-root .cl-headerTitle { font-size: 18px !important; line-height: 24px !important; }

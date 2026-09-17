@@ -1,0 +1,75 @@
+# Organic traffic: plan → reviewed draft → article PR
+
+## Scope
+
+`organic.traffic_system` 0.2.0 extends the existing fixed recipe. It does not add a
+workflow engine or a publisher. Audit and keyword research still run in parallel,
+their exact outputs initialize an editable content program, and optional technical
+repair remains a separate branch. The parent then runs `content.generate` for the
+next article in chronological plan order.
+
+With a selected GitHub repository, the review action is **Approve & open PR**.
+After the final revision is approved, the existing `content.deliver` procedure
+adapts that exact copy to the repository's format and opens an unmerged PR.
+The original Markdown remains readable in Tin. Generation notes stay separate
+from the public article.
+
+Without GitHub (or with explicit `content_delivery=draft_only`), review completes
+with the Markdown in Tin, available for manual export/copy or later explicit
+delivery. There is no pretend CMS publication and no requirement to connect GitHub.
+An existing writing guide is used when available; this recipe does not manufacture
+style samples or implicitly run style extraction.
+
+This is **one next article per parent execution**, not six months of automatic
+weekly drafting. Existing content-plan scheduling prepares batches; it is not
+silently upgraded into a publishing schedule. Backlink planning and outreach are
+deferred. Re-running the research parent creates a new program; continue an existing
+program through its existing Draft next action, rather than repurchasing research.
+
+## Shared dashboard and MCP behavior
+
+- Both start the same parent and use the existing article review/revision APIs.
+- System-linked approvals retain repository adaptation; the standalone Publish now
+  option does not route them through the generic Markdown publisher. An explicit
+  `delivery=none` approval keeps the copy in Tin and skips the parent's PR step.
+- Requests for changes stay on the selected article, preserving its source brief,
+  writing guide and destination. The parent waits for the revision chain and delivers
+  only its final approved copy.
+- The parent captures the connected repository identity before research starts.
+  Changing the integration cannot silently redirect an already-reviewed article.
+- While the parent owns automatic delivery, the saved content card does not offer a
+  duplicate manual Prepare PR action. Existing recovery controls remain available.
+- A no-draft assessment produces no PR. Already-covered content is explicitly skipped;
+  missing evidence or a replanning judgment requires attention, not a random substitute.
+- Stopping the parent prevents subsequent automatic delivery. Drafts already waiting
+  for review stay available; unfinished compute uses existing procedure stop controls.
+- A failed delivery does not delete, redraft or lose the approved article. Review and
+  delivery status are Postgres projections; public copy never receives status notes.
+
+## Compatibility and cost
+
+The parent and all six child definitions/resources publish in one registry revision.
+The v2 recipe pins that revision for every child. Historic v1 definitions and saved
+configurations retain the research/planning-only recipe. Existing in-flight Temporal
+histories replay through the `organic-content-continuation-v1` patch boundary.
+Users do not choose internal definition versions.
+
+The v2 estimate includes one draft and, for automatic delivery, one repository
+adaptation. New content children share the parent's existing usage ledger only when
+their pinned definitions match its prepared recipe. This is not a second charge or
+a six-month reservation. Historical quotes remain unchanged; API-billed execution
+must be available before a new billed v2 parent starts research. User-requested
+revision runs retain their existing separate accounting.
+
+No database migration, new model route, sandbox build, credentials, payment-mode
+change, private-workflow activation or automatic approval is part of this change.
+The project-scoped execution gate and existing worker concurrency are unchanged.
+
+## Verification boundary
+
+Tests exercise real disposable Postgres, local Temporal execution and replay of both
+old/new recipes, exact final-revision selection, shared billing, stop/repository-change
+guards, Markdown retention and light/dark browser controls. Model output, storage and
+GitHub calls use fixtures. No paid ClawMessenger generation, article approval, customer
+PR or website publication is claimed by these tests; that acceptance exercise is
+intentionally not a release blocker for this composition change.

@@ -1,0 +1,38 @@
+graph TD
+  %% tin:composition
+  subgraph clients
+    direction LR
+    %% tin:group layout
+    webapp["Tin web app<br/>Chat · files · approvals"]:::step
+    coding_agent["Your coding agent<br/>Over MCP"]:::step
+  end
+  subgraph execution
+    direction LR
+    %% tin:group layout
+    temporal["Temporal Cloud<br/>Run history · schedules · retries"]:::surface
+    switchboard["Tin server · switchboard<br/>FastAPI · MCP · workflow workers. Clerk auth · project access."]:::surface
+    subgraph sandbox["E2B sandbox"]
+      direction TD
+      %% tin:group frame
+      codex["Agent runtime<br/>Codex · files · pinned skills"]:::step
+      agent_browser["Agent's browser<br/>Camoufox · when needed"]:::step
+    end
+  end
+  subgraph services
+    direction LR
+    %% tin:group layout
+    postgres[("Postgres<br/>Access · chat · run status")]:::store
+    repository[("code.storage<br/>Versioned project files and workflows")]:::store
+    providers["Model and integration APIs<br/>OpenAI · Google · GitHub and others. API credentials stay on Tin's server."]:::surface
+    websites["Websites<br/>Research · product testing"]:::step
+  end
+  webapp --> switchboard
+  coding_agent --> switchboard
+  switchboard -->|start / signal| temporal
+  temporal -.->|workflow tasks| switchboard
+  switchboard -->|create / run| codex
+  codex --> agent_browser
+  agent_browser --> websites
+  switchboard --> postgres
+  switchboard --> repository
+  switchboard --> providers

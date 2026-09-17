@@ -1,0 +1,36 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "example.order_classification",
+    "title": "Classify fixture orders",
+    "description": "Filter fixture orders, classify the selected records with one declared model call, validate and report.",
+    "version": "1.0.0",
+    "executor": "workflow.code",
+    "schedule_modes": ["on_demand"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "minimum_cents": {"type": "integer", "minimum": 0, "maximum": 100000, "default": 1000}
+      },
+      "required": ["project_id"]
+    },
+    "code": {
+      "runtime": "python3.12.8-stdlib-v1",
+      "entrypoint": "main.py",
+      "files": ["main.py", "fixtures/orders.json"],
+      "timeout_seconds": 60,
+      "model_routes": {
+        "classification": {
+          "provider": "openai", "model": "gpt-5.6-luna",
+          "max_calls": 1, "max_input_bytes": 4096, "max_output_tokens": 512
+        }
+      },
+      "output": {
+        "kind": "project.artifact", "path": "reports/custom/ORDER_CLASSIFICATION.md",
+        "media_type": "text/markdown", "max_bytes": 8000
+      }
+    }
+  }
+}

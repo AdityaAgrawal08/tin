@@ -1,0 +1,765 @@
+"""Exact reviewed Markdown delivery; a continuation, not another drafting engine."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from dataclasses import asdict
+from typing import Literal
+from urllib.parse import urlsplit
+from uuid import NAMESPACE_URL, UUID, uuid5
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from tin_lite import content_draft
+from tin_lite.content_programs import ContentPrograms
+from tin_lite.domain import RunStatus
+from tin_lite.integrations import (
+    GitHubFileChange,
+    GitHubRepositoryBinding,
+    IntegrationAuthorizationError,
+)
+from tin_lite.organic_audit import canonical_json
+from tin_lite.project_files import ProjectFileService, safe_project_file_path
+
+WORKFLOW = "tin.content_draft_delivery"
+OPERATION = "content_draft_delivery_v1"
+CHOICE_OPERATION = "content_draft_delivery_choice_v1"
+DRAFT_WORKFLOW_ID = UUID("00000000-0000-4000-8000-000000000031")
+PUBLIC_ARTICLE_WORKFLOW_ID = UUID("00000000-0000-4000-8000-000000000009")
+ANSWER_PAGE_WORKFLOW_ID = UUID("00000000-0000-4000-8000-000000000005")
+# Runs whose approval may choose a repository delivery for that one document.
+CHOICE_WORKFLOW_IDS = frozenset(
+    {DRAFT_WORKFLOW_ID, PUBLIC_ARTICLE_WORKFLOW_ID, ANSWER_PAGE_WORKFLOW_ID}
+)
+REPOSITORY_MODES = frozenset({"github_pr", "github_commit"})
+APPROVAL_CHOICES = ("github_pr", "github_commit", "none")
+
+
+def settings_path(program_id):
+    return f"content/plans/{UUID(str(program_id))}/delivery.json"
+
+
+def delivery_key(run_id):
+    return f"content-draft:{UUID(str(run_id))}:delivery"
+
+
+def preparation_key(run_id):
+    return f"{delivery_key(run_id)}:prepare"
+
+
+def github_key(run_id):
+    return f"{delivery_key(run_id)}:github"
+
+
+def choice_key(run_id):
+    return f"{delivery_key(run_id)}:choice"
+
+
+def approval_label(mode):
+    return "Approve & publish" if mode == "github_commit" else "Approve & open PR"
+
+
+def chosen_mode(intent):
+    return (intent.get("settings") or {}).get("mode")
+
+
+def markdown_path(value):
+    return (
+        isinstance(value, str)
+        and safe_project_file_path(value)
+        and bool(re.fullmatch(r"[A-Za-z0-9_-][A-Za-z0-9_./-]{0,239}\.md", value))
+        and all(part not in {"", ".", ".."} for part in value.split("/"))
+    )
+
+
+class DeliverySettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    mode: Literal["draft_only", "github_pr", "github_commit"] = "draft_only"
+    repository: str = Field(default="", max_length=140)
+    path_pattern: str = Field(default="content/blog/{slug}.md", max_length=240)
+    frontmatter: dict[str, str | bool | int] = Field(default_factory=dict, max_length=20)
+    # Updates are deliberately mapped to actual files, never guessed from a public URL.
+    item_paths: dict[str, str] = Field(default_factory=dict, max_length=100)
+
+    @model_validator(mode="after")
+    def valid(self):
+        if self.mode in REPOSITORY_MODES and not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}", self.repository
+        ):
+            raise ValueError("Choose the connected owner/repository.")
+        pattern = self.path_pattern
+        if pattern.count("{slug}") != 1 or not markdown_path(pattern.replace("{slug}", "article")):
+            raise ValueError("Use a Markdown path with one {slug}, such as content/blog/{slug}.md.")
+        if any(
+            not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", key) or not markdown_path(path)
+            for key, path in self.item_paths.items()
+        ):
+            raise ValueError("Map article IDs to explicit Markdown repository paths.")
+        for key, value in self.frontmatter.items():
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", key):
+                raise ValueError("Frontmatter field names must be simple identifiers.")
+            if isinstance(value, str) and (
+                len(value) > 1000
+                or "\x00" in value
+                or any(
+                    token not in {"title", "date", "slug"}
+                    for token in re.findall(r"\{([^{}]*)\}", value)
+                )
+            ):
+                raise ValueError("Frontmatter supports only {title}, {date}, and {slug} values.")
+        return self
+
+
+def slug_for(candidate, fallback):
+    slug = re.sub(r"[^a-z0-9]+", "-", candidate.casefold()).strip("-")[:100].rstrip("-")
+    return slug or fallback
+
+
+def destination(settings, selected):
+    item = selected["item"]
+    explicit = settings.item_paths.get(item["id"])
+    if item["action"] == "update_page" and not explicit:
+        raise ValueError(
+            "Map this existing-page article to its Markdown file in delivery settings first."
+        )
+    candidate = urlsplit(item.get("destination", "")).path.rstrip("/").rsplit("/", 1)[-1]
+    candidate = candidate or item["title"]
+    slug = slug_for(candidate, item["id"])
+    path = explicit or settings.path_pattern.replace("{slug}", slug)
+    if not markdown_path(path):
+        raise ValueError("The selected article needs a valid Markdown destination.")
+    return path, slug
+
+
+def document_destination(settings, title, run_id):
+    """A reviewed document outside a content plan lands at the pattern's slug path."""
+    slug = slug_for(title, str(run_id))
+    path = settings.path_pattern.replace("{slug}", slug)
+    if not markdown_path(path):
+        raise ValueError("The reviewed document needs a valid Markdown destination.")
+    return path, slug
+
+
+def document_body(raw):
+    """The exact reviewed Markdown of a public article or answer page, plus its title."""
+    article = raw.decode("utf-8").strip() + "\n"
+    title = re.search(r"(?m)^# (.+)$", article)
+    if title is None:
+        raise ValueError("The reviewed document needs a title heading before delivery.")
+    return article, title.group(1).strip()
+
+
+def new_page_header(settings, title, date, slug):
+    if not settings.frontmatter:
+        return ""
+    values = {"title": title, "date": date, "slug": slug}
+    metadata = {
+        key: re.sub(r"\{(title|date|slug)\}", lambda m: values[m[1]], value)
+        if isinstance(value, str)
+        else value
+        for key, value in settings.frontmatter.items()
+    }
+    return "---\n" + yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False) + "---\n\n"
+
+
+def article_body(raw, context):
+    content_draft.validate_artifact(raw, context)
+    if context.get("output_validator") == content_draft.EDITORIAL_VALIDATOR and raw.startswith(
+        b"# Content assessment\n"
+    ):
+        raise ValueError("This run recorded an editorial assessment, not an article for delivery.")
+    if context.get("output_validator") in content_draft.CLEAN_VALIDATORS:
+        article = raw.decode("utf-8").strip() + "\n"
+    else:
+        body = raw.decode("utf-8")[4:].split("\n---\n", 1)[1]
+        article = body.split("\n## Verification notes\n", 1)[0].strip() + "\n"
+    title = re.search(r"(?m)^# (.+)$", article).group(1).strip()
+    return article, title
+
+
+def render_file(raw, context, settings, existing):
+    article, title = article_body(raw, context)
+    path, slug = destination(settings, context)
+    updating = context["item"]["action"] == "update_page"
+    if updating != (existing is not None):
+        raise ValueError(
+            "The update destination does not exist. Check its mapped file."
+            if updating
+            else "This new-page destination already exists. Choose another path."
+        )
+    header = ""
+    if existing is not None and existing.startswith(("---\n", "---\r\n")):
+        frontmatter = re.match(r"\A---\r?\n(.*?)\r?\n---(?:\r?\n|$)", existing, re.S)
+        if not frontmatter or not isinstance(yaml.safe_load(frontmatter[1]), dict):
+            raise ValueError("The existing Markdown frontmatter is unsupported.")
+        header = frontmatter[0] + "\n"
+    elif existing is not None and existing.startswith(("+++", "\ufeff")):
+        raise ValueError("This Markdown file uses unsupported metadata. Keep it draft-only.")
+    elif not updating:
+        header = new_page_header(settings, title, context["due_date"], slug)
+    return path, header + article, title
+
+
+def delivery_projection(run, intent, receipt):
+    """One card shape for both repository modes; ``receipt`` is a dict or None."""
+    mode = intent["settings"]["mode"]
+    receipt = receipt or {}
+    completed = receipt.get("status") == "completed"
+    return {
+        "repository": intent["settings"]["repository"],
+        "path": intent["path"],
+        "mode": mode,
+        "status": receipt.get("status")
+        or ("pending" if run.review_decision == "approved" else "awaiting_review"),
+        "error": receipt.get("error_message"),
+        "pull_request": receipt.get("result") if completed and mode == "github_pr" else None,
+        "commit": receipt.get("result") if completed and mode == "github_commit" else None,
+        "approval_label": approval_label(mode),
+    }
+
+
+class ContentDelivery:
+    def __init__(self, *, database, storage=None, integrations=None):
+        self.db, self.storage, self.integrations = database, storage, integrations
+        self.programs = ContentPrograms(database=database, storage=storage)
+
+    async def settings(self, *, project_id, program_id, revision=None):
+        await self.programs.configured(project_id, program_id)
+        project = await self.db.get_project(project_id)
+        if revision is None:
+            repo = await self.storage.get_repo(project.state_repo_id)
+            revision = await self.storage.head_sha(repo, project.canonical_branch)
+        raw = await self.storage.read_canonical_artifact_if_exists(
+            repo_id=project.state_repo_id, commit_sha=revision, path=settings_path(program_id)
+        )
+        if raw is not None and len(raw) > 32_000:
+            raise ValueError("Delivery settings exceed 32 KB.")
+        settings = DeliverySettings.model_validate_json(raw) if raw else DeliverySettings()
+        connection = await self.db.get_integration_connection(
+            project_id=project_id, provider_key="infra.github"
+        )
+        return {
+            "revision": revision,
+            "path": settings_path(program_id),
+            "settings": settings.model_dump(),
+            "available_repository": (
+                connection.configuration.get("selected_repository")
+                if connection and connection.status == "connected"
+                else None
+            ),
+        }
+
+    async def save_settings(
+        self,
+        *,
+        project_id,
+        program_id,
+        settings,
+        request_id,
+        expected_revision,
+        actor,
+        client_id=None,
+    ):
+        await self.programs.configured(project_id, program_id)
+        # A replay must not require an integration that was subsequently disconnected.
+        prior = await self.db.get_project_file_change(project_id=project_id, request_id=request_id)
+        if settings.mode in REPOSITORY_MODES and not prior:
+            if self.integrations is None:
+                raise ValueError("Connect GitHub before enabling delivery.")
+            await self.integrations.github_repository_binding(
+                project_id=project_id, expected_repository=settings.repository
+            )
+        project = await self.db.get_project(project_id)
+        return asdict(
+            await ProjectFileService(database=self.db, storage=self.storage).commit(
+                project=project,
+                actor_clerk_user_id=actor,
+                client_id=client_id,
+                request_id=request_id,
+                expected_revision=expected_revision,
+                message="Update content delivery settings",
+                changes=[
+                    {
+                        "operation": "upsert",
+                        "path": settings_path(program_id),
+                        "content": canonical_json(settings.model_dump()).decode(),
+                    }
+                ],
+            )
+        )
+
+    async def pin(self, *, project_id, selected):
+        configured = await self.settings(
+            project_id=project_id,
+            program_id=UUID(selected["program_id"]),
+            revision=selected["project_revision"],
+        )
+        settings = DeliverySettings.model_validate(configured["settings"])
+        if settings.mode == "draft_only":
+            return None
+        path, _ = destination(settings, selected)
+        if self.integrations is None:
+            raise ValueError("Connect GitHub before drafting for repository delivery.")
+        binding = await self.integrations.github_repository_binding(
+            project_id=project_id, expected_repository=settings.repository
+        )
+        return {
+            "settings": settings.model_dump(),
+            "settings_revision": configured["revision"],
+            "path": path,
+            "repository_id": binding.repository_id,
+            "connection_id": str(binding.connection_id),
+            "installation_id": binding.installation_id,
+        }
+
+    async def intent(self, run):
+        if run.workflow_id not in CHOICE_WORKFLOW_IDS:
+            return None
+        choice = await self.db.get_effect(choice_key(run.id))
+        if choice and choice.status == "completed" and choice.result:
+            return choice.result if chosen_mode(choice.result) in REPOSITORY_MODES else None
+        if run.workflow_id != DRAFT_WORKFLOW_ID or run.executor != "codex.procedure":
+            return None
+        selected = await self.db.get_effect(content_draft.selection_key(run.id))
+        return (
+            (selected.result or {}).get("delivery")
+            if selected and selected.status == "completed"
+            else None
+        )
+
+    async def program_for(self, run):
+        """The program whose delivery settings govern this run: (program_id, selection)."""
+        if run.workflow_id == DRAFT_WORKFLOW_ID:
+            selected = await self.db.get_effect(content_draft.selection_key(run.id))
+            if not selected or selected.status != "completed" or not selected.result:
+                raise ValueError("This draft has no saved article selection.")
+            return UUID(str(selected.result["program_id"])), selected.result
+        if run.project_workflow_id is None:
+            raise ValueError(
+                "Save this workflow to the project before choosing where it publishes."
+            )
+        return run.project_workflow_id, None
+
+    async def choose(self, *, run, mode, remember=False, actor=None):
+        """Record the reviewer's delivery pick for one document; optionally keep it."""
+        if run.workflow_id not in CHOICE_WORKFLOW_IDS:
+            raise ValueError("This run does not publish to a repository.")
+        if mode not in APPROVAL_CHOICES:
+            raise ValueError("Choose a pull request, publishing now, or no delivery.")
+        existing = await self.db.get_effect(choice_key(run.id))
+        existing = existing.result if existing and existing.status == "completed" else None
+        if run.review_decision == "approved":
+            return existing  # The approval already happened; its delivery choice stands.
+        if run.workflow_id == DRAFT_WORKFLOW_ID:
+            from tin_lite.organic_content import intent_for
+
+            system_intent = await intent_for(self.db, run)
+            if system_intent and system_intent.get("mode") == "github_pr":
+                if mode == "github_commit":
+                    raise ValueError(
+                        "This organic system adapts the article into a reviewable PR. "
+                        "Choose a PR or keep the draft in Tin."
+                    )
+                # The parent owns repository adaptation; never also invoke the
+                # generic exact-Markdown publisher for this approval.
+                return await self.record_choice(
+                    run,
+                    {
+                        "system_delivery": system_intent,
+                        "mode": mode,
+                        "chosen_by": actor,
+                    },
+                )
+        program_id, selected = await self.program_for(run)
+        configured = await self.settings(project_id=run.project_id, program_id=program_id)
+        base = DeliverySettings.model_validate(configured["settings"])
+        if mode == "none":
+            chosen = DeliverySettings.model_validate({**base.model_dump(), "mode": "draft_only"})
+            record = {
+                "settings": chosen.model_dump(),
+                "settings_revision": configured["revision"],
+                "path": None,
+            }
+        else:
+            chosen = DeliverySettings.model_validate(
+                {
+                    **base.model_dump(),
+                    "mode": mode,
+                    "repository": base.repository or configured["available_repository"] or "",
+                }
+            )
+            if selected is not None:
+                path, _ = destination(chosen, selected)
+            else:
+                _, _, title = await self.document_source(run)
+                path, _ = document_destination(chosen, title, run.id)
+            if self.integrations is None:
+                raise ValueError("Connect GitHub before publishing to a repository.")
+            binding = await self.integrations.github_repository_binding(
+                project_id=run.project_id, expected_repository=chosen.repository
+            )
+            record = {
+                "settings": chosen.model_dump(),
+                "settings_revision": configured["revision"],
+                "path": path,
+                "repository_id": binding.repository_id,
+                "connection_id": str(binding.connection_id),
+                "installation_id": binding.installation_id,
+            }
+        record["chosen_by"] = actor
+        if remember and chosen.model_dump() != base.model_dump():
+            await self.save_settings(
+                project_id=run.project_id,
+                program_id=program_id,
+                settings=chosen,
+                request_id=uuid5(NAMESPACE_URL, f"tin:delivery-choice:{run.id}:{mode}"),
+                expected_revision=configured["revision"],
+                actor=actor,
+            )
+        return await self.record_choice(run, record)
+
+    async def record_choice(self, run, record):
+        key = choice_key(run.id)
+        async with self.db.effect_lock(key, CHOICE_OPERATION) as (conn, receipt):
+            if receipt and receipt.status == "completed":
+                if receipt.result != record:
+                    # Not yet approved: the reviewer changed their mind before approving.
+                    await conn.execute(
+                        "UPDATE effect_receipts SET result = $2::jsonb, updated_at = now() "
+                        "WHERE execution_key = $1",
+                        key,
+                        json.dumps(record),
+                    )
+                return record
+            await self.db.start_effect(conn, execution_key=key, operation=CHOICE_OPERATION)
+            await self.db.complete_effect(conn, execution_key=key, result=record)
+        return record
+
+    async def document_source(self, run):
+        """The exact reviewed Markdown of a non-plan run (public article, answer page)."""
+        if not run.canonical_commit_sha or not run.artifact_path:
+            raise ValueError("The reviewed document's publication proof is unavailable.")
+        project = await self.db.get_project(run.project_id)
+        raw = await self.storage.read_canonical_artifact(
+            repo_id=project.state_repo_id,
+            commit_sha=run.canonical_commit_sha,
+            path=run.artifact_path,
+        )
+        if len(raw) > 80_000:
+            raise ValueError("The reviewed document exceeds its size limit.")
+        article, title = document_body(raw)
+        return raw, article, title
+
+    async def status(self, run):
+        from tin_lite import content_repository_delivery as repository_delivery
+
+        if run.workflow_id == repository_delivery.WORKFLOW_ID:
+            source = await repository_delivery.saved_source(self.db, run.id)
+            publication = await self.db.get_effect(f"{run.id}:procedure_canonical_commit")
+            recovered = await self.db.get_effect(repository_delivery.recovery_key(run.id))
+            return repository_delivery.status_projection(
+                run,
+                source,
+                publication.result if publication and publication.status == "completed" else {},
+                recovered.result if recovered and recovered.status == "completed" else {},
+            )
+        intent = await self.intent(run)
+        if not intent:
+            if run.workflow_id != DRAFT_WORKFLOW_ID:
+                return None
+            from tin_lite.content_editorial_judgment import NO_DRAFT, saved
+            from tin_lite.organic_content import delivery_status, intent_for
+
+            system_intent = await intent_for(self.db, run)
+            if not system_intent or system_intent.get("mode") != "github_pr":
+                return None
+            judgment = await saved(self.db, run)
+            if judgment and judgment["outcome"] in NO_DRAFT:
+                return None
+            return await delivery_status(self.db, run, system_intent)
+        if run.workflow_id == DRAFT_WORKFLOW_ID:
+            from tin_lite.content_editorial_judgment import NO_DRAFT, saved
+
+            judgment = await saved(self.db, run)
+            if judgment and judgment["outcome"] in NO_DRAFT:
+                return None
+        receipt = await self.db.get_effect(delivery_key(run.id))
+        return delivery_projection(
+            run,
+            intent,
+            {
+                "status": receipt.status,
+                "error_message": receipt.error_message,
+                "result": receipt.result,
+            }
+            if receipt
+            else None,
+        )
+
+    async def statuses(self, runs):
+        """A bounded Postgres read for card polling; never filesystem/provider reads."""
+        from tin_lite import content_repository_delivery as repository_delivery
+        from tin_lite.content_programs import decoded
+
+        candidates = [
+            r
+            for r in runs
+            if r.workflow_id in CHOICE_WORKFLOW_IDS
+            or r.workflow_id == repository_delivery.WORKFLOW_ID
+        ]
+        if not candidates:
+            return {}
+        keys = [
+            key
+            for run in candidates
+            for key in (
+                (
+                    content_draft.selection_key(run.id),
+                    delivery_key(run.id),
+                    choice_key(run.id),
+                    f"{run.id}:procedure_canonical_commit",
+                )
+                if run.workflow_id in CHOICE_WORKFLOW_IDS
+                else (
+                    repository_delivery.source_key(run.id),
+                    f"{run.id}:procedure_canonical_commit",
+                    repository_delivery.recovery_key(run.id),
+                )
+            )
+        ]
+        rows = await self.db.pool.fetch(
+            "SELECT execution_key, status, result, error_message FROM effect_receipts "
+            "WHERE execution_key = ANY($1::text[])",
+            keys,
+        )
+        receipts = {
+            r["execution_key"]: {**dict(r), "result": decoded(r["result"] or {})} for r in rows
+        }
+        output = {}
+        for run in candidates:
+            if run.workflow_id == repository_delivery.WORKFLOW_ID:
+                source = receipts.get(repository_delivery.source_key(run.id), {})
+                if source.get("status") != "completed":
+                    continue
+                publication = receipts.get(f"{run.id}:procedure_canonical_commit", {})
+                recovery = receipts.get(repository_delivery.recovery_key(run.id), {})
+                output[run.id] = repository_delivery.status_projection(
+                    run,
+                    source["result"],
+                    publication.get("result", {})
+                    if publication.get("status") == "completed"
+                    else {},
+                    recovery.get("result", {}) if recovery.get("status") == "completed" else {},
+                )
+                continue
+            if run.workflow_id == DRAFT_WORKFLOW_ID:
+                from tin_lite.content_editorial_judgment import no_draft
+
+                publication = receipts.get(f"{run.id}:procedure_canonical_commit", {})
+                if publication.get("status") == "completed" and no_draft(publication.get("result")):
+                    continue
+            choice = receipts.get(choice_key(run.id), {})
+            if choice.get("status") == "completed" and choice.get("result"):
+                intent = (
+                    choice["result"] if chosen_mode(choice["result"]) in REPOSITORY_MODES else None
+                )
+            elif run.workflow_id == DRAFT_WORKFLOW_ID and run.executor == "codex.procedure":
+                selected = receipts.get(content_draft.selection_key(run.id), {})
+                intent = (
+                    selected.get("result", {}).get("delivery")
+                    if selected.get("status") == "completed"
+                    else None
+                )
+            else:
+                intent = None
+            selected = receipts.get(content_draft.selection_key(run.id), {})
+            system_intent = selected.get("result", {}).get("system_delivery")
+            if (
+                selected.get("status") == "completed"
+                and system_intent
+                and system_intent.get("mode") == "github_pr"
+            ):
+                from tin_lite.organic_content import delivery_status
+
+                output[run.id] = await delivery_status(self.db, run, system_intent)
+                continue
+            if not intent:
+                continue
+            output[run.id] = delivery_projection(run, intent, receipts.get(delivery_key(run.id)))
+        return output
+
+    async def deliver(self, run_id):
+        run = await self.db.get_run(UUID(str(run_id)))
+        if run is None:
+            raise LookupError("Draft not found.")
+        intent = await self.intent(run)
+        if not intent:
+            return
+        if run.workflow_id == DRAFT_WORKFLOW_ID:
+            from tin_lite.content_editorial_judgment import NO_DRAFT, saved
+
+            judgment = await saved(self.db, run)
+            if judgment and judgment["outcome"] in NO_DRAFT:
+                return  # No copy, review, or supplier effect exists to deliver.
+        if run.status != RunStatus.SUCCEEDED or run.review_decision != "approved":
+            raise ValueError("Approve this draft before publishing it.")
+        direct_commit = chosen_mode(intent) == "github_commit"
+        key = delivery_key(run.id)
+        async with self.db.effect_lock(key, OPERATION) as (conn, receipt):
+            if receipt and receipt.status == "completed":
+                return
+            await self.db.start_effect(conn, execution_key=key, operation=OPERATION)
+            try:
+                prepared = await self.prepare(run, intent, conn=conn)
+                binding = GitHubRepositoryBinding(
+                    **{
+                        **prepared["binding"],
+                        "connection_id": UUID(prepared["binding"]["connection_id"]),
+                    }
+                )
+                files = (GitHubFileChange(path=prepared["path"], content=prepared["content"]),)
+                if direct_commit:
+                    # Same rendered file, committed onto the default branch; no branch, no PR.
+                    result = await self.integrations.github_commit_files(
+                        project_id=run.project_id,
+                        run_id=run.id,
+                        execution_key=github_key(run.id),
+                        message=f"Content: {prepared['title']}"[:200],
+                        files=files,
+                        base_branch=binding.default_branch,
+                        expected_binding=binding,
+                    )
+                else:
+                    result = await self.integrations.github_create_pull_request(
+                        project_id=run.project_id,
+                        run_id=run.id,
+                        execution_key=github_key(run.id),
+                        title=f"Content: {prepared['title']}"[:200],
+                        body="Add the reviewed article. Tin metadata and verification notes "
+                        "are excluded.\n\nThis PR is unmerged. Review the site preview and "
+                        "editorial checks before merging.",
+                        files=files,
+                        base_branch=binding.default_branch,
+                        expected_base_sha=binding.head_sha,
+                        expected_binding=binding,
+                        allow_unrelated_base_advance=True,
+                    )
+                result = {
+                    **asdict(result),
+                    "path": prepared["path"],
+                    "draft_revision": prepared["draft_revision"],
+                    "draft_sha256": prepared["draft_sha256"],
+                    "content_sha256": prepared["content_sha256"],
+                }
+                if direct_commit:
+                    short = result["commit"][:7]
+                    event = {
+                        "event_type": "content_draft_commit_ready",
+                        "summary": f"Reviewed article is published as commit {short}.",
+                        "external_label": f"View commit {short}",
+                    }
+                else:
+                    event = {
+                        "event_type": "content_draft_pull_request_ready",
+                        "summary": f"Reviewed article is ready as PR #{result['number']}.",
+                        "external_label": f"Review PR #{result['number']}",
+                    }
+                async with conn.transaction():
+                    await self.db.complete_effect(conn, execution_key=key, result=result)
+                    await self.db.add_activity(
+                        run_id=run.id,
+                        event_type=event["event_type"],
+                        audience="product",
+                        summary=event["summary"],
+                        details={
+                            "kind": "runs",
+                            "status": "succeeded",
+                            "external_url": result["url"],
+                            "external_label": event["external_label"],
+                            "repository": result["repository"],
+                            "program_id": (run.input or {}).get("program_id"),
+                            "artifact_ref": run.artifact_ref,
+                        },
+                        dedupe_key=f"{key}:ready",
+                        conn=conn,
+                    )
+            except Exception as exc:
+                # Only bounded product errors; no provider payloads or credentials.
+                error = (
+                    str(exc)[:500]
+                    if isinstance(exc, (ValueError, IntegrationAuthorizationError))
+                    else "GitHub delivery could not be confirmed. "
+                    "Retry delivery; the approved draft is safe."
+                )
+                await self.db.fail_effect(conn, execution_key=key, error_message=error)
+                raise
+
+    async def prepare(self, run, intent, *, conn=None):
+        key = preparation_key(run.id)
+        async with self.db.effect_lock(key, OPERATION, conn=conn) as (conn, receipt):
+            if receipt and receipt.status == "completed":
+                return receipt.result
+            if self.integrations is None:
+                raise ValueError("GitHub is unavailable. Reconnect it, then retry delivery.")
+            settings = DeliverySettings.model_validate(intent["settings"])
+            if run.workflow_id != DRAFT_WORKFLOW_ID:
+                raw, article, title = await self.document_source(run)
+                context = None
+            else:
+                project = await self.db.get_project(run.project_id)
+                context = await self.db.get_effect(content_draft.receipt_key(run.id))
+                canonical = await self.db.get_effect(f"{run.id}:procedure_canonical_commit")
+                if (
+                    not context
+                    or context.status != "completed"
+                    or not canonical
+                    or canonical.status != "completed"
+                    or run.canonical_commit_sha != canonical.result["canonical_commit_sha"]
+                    or run.artifact_path != content_draft.PATH_TEMPLATE.format(run_id=run.id)
+                ):
+                    raise ValueError("The reviewed draft's publication proof is unavailable.")
+                raw = await self.storage.read_canonical_artifact(
+                    repo_id=project.state_repo_id,
+                    commit_sha=run.canonical_commit_sha,
+                    path=run.artifact_path,
+                )
+                if len(raw) > 80_000:
+                    raise ValueError("The reviewed draft exceeds its size limit.")
+            binding = await self.integrations.github_repository_binding(
+                project_id=run.project_id, expected_repository=settings.repository
+            )
+            if any(
+                str(getattr(binding, field)) != str(intent[field])
+                for field in ("repository_id", "installation_id", "connection_id")
+            ):
+                raise ValueError("The GitHub connection changed after this draft started.")
+            existing = await self.integrations.github_markdown_file(
+                project_id=run.project_id, binding=binding, path=intent["path"]
+            )
+            if context is None:
+                if existing is not None:
+                    raise ValueError(
+                        "This destination already exists in the repository. Choose another path."
+                    )
+                path, slug = document_destination(settings, title, run.id)
+                date = run.created_at.date().isoformat() if run.created_at else ""
+                content = new_page_header(settings, title, date, slug) + article
+            else:
+                path, content, title = render_file(raw, context.result, settings, existing)
+            if path != intent["path"]:
+                raise ValueError("The draft destination changed after admission.")
+            prepared = {
+                "binding": {**asdict(binding), "connection_id": str(binding.connection_id)},
+                "path": path,
+                "content": content,
+                "title": title,
+                "draft_revision": run.canonical_commit_sha,
+                "draft_sha256": hashlib.sha256(raw).hexdigest(),
+                "content_sha256": hashlib.sha256(content.encode()).hexdigest(),
+            }
+            await self.db.start_effect(conn, execution_key=key, operation=OPERATION)
+            await self.db.complete_effect(conn, execution_key=key, result=prepared)
+            return prepared

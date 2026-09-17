@@ -1,0 +1,44 @@
+[
+  {
+    "id": "whole-system",
+    "title": "The whole system",
+    "description": "Architecture reference · nested services, on-demand compute, and durable stores.",
+    "file": "whole-system.mmd"
+  },
+  {
+    "id": "computer-assembly",
+    "title": "Assembling a project’s computer",
+    "description": "Assembly reference · inputs arrive from the left and above; services stay outside the sandbox.",
+    "file": "computer-assembly.mmd"
+  },
+  {
+    "id": "workflow-anatomy",
+    "title": "Anatomy of a workflow run",
+    "description": "Execution reference · a shared history branches into different activity surfaces, then feeds durable memory.",
+    "file": "workflow-anatomy.mmd"
+  },
+  {
+    "id": "session-lifecycle",
+    "title": "session.codex · the long-running session",
+    "description": "Lifecycle reference · forward progression, an active-turn loop, a warm resume, and a longer recovery path.",
+    "file": "session-lifecycle.mmd"
+  },
+  {
+    "id": "linkedin-sequence",
+    "title": "outreach.linkedin · the multi-touch sequence",
+    "description": "Campaign reference · independent recipient lanes share one dispatch ledger; replies cancel only that recipient’s future.",
+    "file": "linkedin-sequence.mmd"
+  },
+  {
+    "id": "stranger-walk",
+    "title": "product.journey_proof · the stranger walk",
+    "description": "Journey reference · workflow, agent, browser, mailbox, and founder roles cross through asynchronous signals.",
+    "file": "stranger-walk.mmd"
+  },
+  {
+    "id": "memory-gardener",
+    "title": "project.memory · the nightly gardener",
+    "description": "Memory reference · consolidation produces durable knowledge that fans back into chat and future sandbox assemblies.",
+    "file": "memory-gardener.mmd"
+  }
+]

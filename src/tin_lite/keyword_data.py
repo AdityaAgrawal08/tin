@@ -1,0 +1,148 @@
+"""Allowlisted, bounded DataForSEO research calls. No SDK/HTTP retries or caller URLs."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+from decimal import Decimal
+
+import httpx
+
+from tin_lite.dataforseo import DataForSEO, DataForSEOError
+from tin_lite.keyword_plan import POLICY, host, phrase
+from tin_lite.organic_audit import MARKETS
+from tin_lite.usage_capture import begin_observation, observe_tool
+
+ENDPOINTS = {
+    "ranked": "dataforseo_labs/google/ranked_keywords/live",
+    "ranked_relevant": "dataforseo_labs/google/ranked_keywords/live",
+    "competitors": "dataforseo_labs/google/competitors_domain/live",
+    "ideas": "dataforseo_labs/google/keyword_ideas/live",
+    "suggestions": "dataforseo_labs/google/keyword_suggestions/live",
+    "related": "dataforseo_labs/google/related_keywords/live",
+    "overview": "dataforseo_labs/google/keyword_overview/live",
+    "serp": "serp/google/organic/live/advanced",
+}
+
+
+def request_for(kind: str, *, market: str, value, tag: str) -> dict:
+    request = {"location_code": MARKETS[market], "language_code": "en", "tag": tag}
+    if kind == "ranked":
+        request.update(target=host(value).removeprefix("www."), limit=POLICY["footprint_rows"])
+    elif kind == "ranked_relevant":
+        seeds = value["seeds"]
+        if not isinstance(seeds, list) or not 1 <= len(seeds) <= POLICY["max_seeds"]:
+            raise ValueError("Competitor research requires bounded seed phrases.")
+        filters = []
+        for seed in seeds:
+            if filters:
+                filters.append("or")
+            filters.append(["keyword_data.keyword", "regex", "(?i)" + re.escape(phrase(seed))])
+        request.update(
+            target=host(value["host"]).removeprefix("www."),
+            limit=POLICY["footprint_rows"],
+            filters=filters,
+        )
+    elif kind == "competitors":
+        request.update(target=host(value).removeprefix("www."), limit=5)
+    elif kind == "ideas":
+        request.update(keywords=[phrase(value)], limit=POLICY["idea_rows"])
+    elif kind == "related":
+        request.update(keyword=phrase(value), depth=1, limit=POLICY["related_rows"])
+    elif kind == "suggestions":
+        request.update(keyword=phrase(value), limit=POLICY["idea_rows"])
+    elif kind == "overview":
+        if not isinstance(value, list) or not 1 <= len(value) <= POLICY["max_seeds"]:
+            raise ValueError("Seed metric lookup exceeds its bound.")
+        request.update(keywords=[phrase(item) for item in value])
+    elif kind == "serp":
+        request.update(keyword=phrase(value), depth=10, device="desktop", os="windows")
+    else:
+        raise ValueError("Unknown keyword research endpoint.")
+    return request
+
+
+class KeywordData:
+    validate_target = staticmethod(DataForSEO.validate_target)
+
+    def __init__(self, login: str, password: str, *, transport=None):
+        self._auth = httpx.BasicAuth(login, password)
+        self._transport = transport
+
+    async def query(self, kind: str, *, market: str, value, tag: str) -> dict:
+        request = request_for(kind, market=market, value=value, tag=tag)
+        observation = await begin_observation("dataforseo", "tool", ENDPOINTS[kind])
+        try:
+            async with (
+                asyncio.timeout(50),
+                httpx.AsyncClient(
+                    auth=self._auth,
+                    timeout=45,
+                    follow_redirects=False,
+                    trust_env=False,
+                    transport=self._transport,
+                ) as client,
+                client.stream(
+                    "POST", f"https://api.dataforseo.com/v3/{ENDPOINTS[kind]}", json=[request]
+                ) as response,
+            ):
+                response.raise_for_status()
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > 4_000_000:
+                        raise DataForSEOError("Keyword response exceeded the transport bound.")
+                payload = json.loads(body)
+            if not isinstance(payload, dict) or payload.get("status_code") != 20000:
+                raise DataForSEOError("Keyword provider response was not successful.")
+            tasks = payload.get("tasks")
+            if not isinstance(tasks, list) or len(tasks) != 1 or not isinstance(tasks[0], dict):
+                raise DataForSEOError("Keyword response has an invalid task envelope.")
+            task = tasks[0]
+            await observe_tool(observation, task)
+            if task.get("status_code") != 20000:
+                raise DataForSEOError("Keyword task did not return a completed result.")
+            data = task.get("data")
+            if not isinstance(data, dict) or any(
+                data.get(key) != value for key, value in request.items()
+            ):
+                raise DataForSEOError("Keyword response belongs to a different request scope.")
+            cost = Decimal(str(task.get("cost")))
+            if not cost.is_finite() or cost < 0:
+                raise DataForSEOError("Keyword response has invalid cost metadata.")
+            results = task.get("result")
+            if results is None and task.get("result_count") == 0:
+                results = []
+            if not isinstance(results, list) or len(results) > 1:
+                raise DataForSEOError("Keyword response has an invalid result envelope.")
+            items, total = [], 0
+            if results:
+                result = results[0]
+                if not isinstance(result, dict) or any(
+                    result.get(key, request[key]) != request[key]
+                    for key in ("location_code", "language_code")
+                ):
+                    raise DataForSEOError("Keyword result has a different market or language.")
+                items = result.get("items")
+                if items is None and result.get("items_count") == 0:
+                    items = []
+                if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                    raise DataForSEOError("Keyword result contains invalid rows.")
+                total = result.get("total_count")
+            # A SERP includes non-organic features; only the consumer's bounded organic
+            # projection is retained. Other endpoints may not exceed requested row counts.
+            bound = 100 if kind == "serp" else request.get("limit", POLICY["max_seeds"])
+            if len(items) > bound:
+                raise DataForSEOError("Keyword provider exceeded the requested row bound.")
+            return {
+                "items": items,
+                "items_count": len(items),
+                "total_count": total if isinstance(total, int) and total >= 0 else None,
+                "reported_cost_usd": str(cost),
+                "provider_task_id": str(task.get("id") or "")[:100],
+            }
+        except DataForSEOError:
+            raise
+        except (httpx.HTTPError, ValueError, TypeError, KeyError, ArithmeticError, TimeoutError):
+            raise DataForSEOError("Keyword provider outcome could not be confirmed.") from None

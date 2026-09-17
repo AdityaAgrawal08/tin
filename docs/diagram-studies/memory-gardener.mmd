@@ -1,0 +1,21 @@
+graph TD
+  %% tin:composition
+  subgraph consolidation
+    direction LR
+    %% tin:group layout
+    schedule["Nightly schedule"]:::wait
+    gather["Gather<br/>Receipts · run outputs · corrections"]:::step
+    consolidate["Consolidate<br/>Model call · update the wiki"]:::step
+    wiki[("Project wiki · Git<br/>The diff is the memory audit")]:::store
+  end
+  subgraph consumers["Knowledge reused"]
+    direction RL
+    %% tin:group lane
+    sandbox["Future sandbox assembly<br/>Load the durable project memory"]:::surface
+    luna["Luna context<br/>Answer from project knowledge"]:::surface
+  end
+  schedule --> gather
+  gather --> consolidate
+  consolidate --> wiki
+  wiki -->|load context| luna
+  wiki -->|load on assembly| sandbox

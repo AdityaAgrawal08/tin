@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <meta name="robots" content="noindex" />
+    <title>Connect your coding agent · Tin</title>
+    <link rel="icon" href="/assets/tin-favicon.svg?v={{ASSET_VERSION}}" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/app.css?v={{ASSET_VERSION}}" />
+    <link rel="stylesheet" href="/assets/auth.css?v={{ASSET_VERSION}}" />
+    <!--PRIVATE_FONTS_STYLESHEET-->
+    <link rel="stylesheet" href="/assets/mcp-consent.css?v={{ASSET_VERSION}}" />
+    <script src="/assets/theme.js?v={{ASSET_VERSION}}"></script>
+    <script>window.TinTheme.apply(window.TinTheme.storedPreference(), {persist: false});</script>
+    <script defer crossorigin="anonymous" src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/ui@1/dist/ui.browser.js"></script>
+    <script defer crossorigin="anonymous" data-clerk-publishable-key="{{CLERK_PUBLISHABLE_KEY}}"
+      src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/clerk-js@6/dist/clerk.browser.js"></script>
+    <script defer src="/assets/auth-appearance.js?v={{ASSET_VERSION}}"></script>
+    <script defer src="/assets/mcp-consent.js?v={{ASSET_VERSION}}"></script>
+  </head>
+  <body>
+    <main class="auth-root consent-root" data-mode="consent">
+      <header class="auth-brand"><img src="/assets/tin-logotype-ink.png" alt="Tin" /></header>
+      <section class="auth-stage">
+        <div class="auth-view consent-view">
+          <header class="consent-intro">
+            <h1>Let your coding agent grow your project.</h1>
+            <p>Allow it to use your Tin account and it will plan your marketing from your codebase, run it on a schedule, and bring you drafts to approve.</p>
+          </header>
+          <p id="consent-status" role="status">Loading your connection request…</p>
+          <section id="consent-sign-in" hidden aria-label="Sign in to continue">
+            <p>Create a Tin account to get started.</p>
+            <a class="consent-create" href="{{SIGN_UP_URL}}">Create an account</a>
+            <p class="consent-sign-in-link">Already using Tin? <a href="{{SIGN_IN_URL}}">Sign in</a></p>
+          </section>
+          <div id="clerk-oauth-consent"></div>
+          <p class="consent-recovery">Having trouble? <button id="consent-retry" type="button">Reload this step</button>.</p>
+          <noscript><p>Enable JavaScript, then start the connection again from your coding agent.</p></noscript>
+        </div>
+      </section>
+      <footer class="auth-footer">
+        <a href="https://tin.computer">tin.computer</a><span></span>
+        <nav aria-label="Legal">
+          <a href="https://tin.computer/legal/terms">terms</a>
+          <a href="https://tin.computer/legal/privacy">privacy</a>
+        </nav>
+      </footer>
+    </main>
+  </body>
+</html>

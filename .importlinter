@@ -1,0 +1,13 @@
+[importlinter]
+root_package = tin_lite
+include_external_packages = True
+
+[importlinter:contract:greenfield fence]
+name = Legacy orchestration module names are forbidden
+type = forbidden
+source_modules =
+    tin_lite
+forbidden_modules =
+    control_plane
+    repository
+    scheduler

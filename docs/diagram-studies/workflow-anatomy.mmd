@@ -1,0 +1,46 @@
+graph TD
+  %% tin:composition
+  subgraph entry
+    direction LR
+    %% tin:group layout
+    founder["Founder ask<br/>In chat"]:::step
+    luna["Luna picks a tool<br/>outreach.linkedin.start"]:::step
+    api["Control plane<br/>Validate schema · auth · workflow ID"]:::step
+    temporal["Temporal<br/>One auditable run history"]:::surface
+  end
+  dispatch["Worker dispatches activities"]:::step
+  subgraph activities["Activity surfaces"]
+    direction LR
+    %% tin:group lane
+    waits["Durable waits<br/>Timers · signals · human approval. No running compute while waiting."]:::wait
+    subgraph trusted_steps
+      direction TD
+      %% tin:group layout
+      trusted["In-worker step<br/>Database write · provider call via gateway"]:::step
+      sandbox["Sandbox step<br/>Assemble computer · Codex does the work"]:::surface
+    end
+    subgraph model_steps
+      direction TD
+      %% tin:group layout
+      model["Model call<br/>Rendered prompt and output captured"]:::step
+      browser["Browser step<br/>Kernel session · CDP · founder live view"]:::surface
+    end
+    subgraph evidence
+      direction TD
+      %% tin:group layout
+      receipts["Effect receipts<br/>Typed evidence for every effect"]:::receipt
+      wiki[("Project wiki<br/>Git · diffable durable memory")]:::store
+    end
+  end
+  founder --> luna
+  luna --> api
+  api --> temporal
+  temporal --> dispatch
+  dispatch --> waits
+  dispatch --> trusted
+  dispatch --> model
+  trusted --> sandbox
+  model --> browser
+  model --> receipts
+  receipts --> wiki
+  wiki -.->|memory for the next assembly| sandbox

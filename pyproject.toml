@@ -1,0 +1,65 @@
+[project]
+name = "tin-lite"
+version = "0.1.0"
+description = "Tin Lite workflow substrate with a catalog-driven Luna client"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "third_party/licenses/*"]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "anthropic>=0.80,<1",
+  "asyncpg>=0.30.0,<1",
+  "clerk-backend-api>=5,<6",
+  "cryptography>=46,<47",
+  "e2b>=2.6.0,<3",
+  "fastapi>=0.116.0,<1",
+  "google-genai>=1.60,<2",
+  "httpx>=0.28.0,<1",
+  "jsonschema>=4.26.0,<5",
+  "mcp>=2,<3",
+  "mistune>=3.1,<4",
+  "openai>=2,<3",
+  "pierre-storage>=0.3.0,<1",
+  "posthog>=7.54.0",
+  "pydantic>=2.11.0,<3",
+  "pydantic-settings>=2.10.0,<3",
+  "stripe>=12,<20",
+  "temporalio>=1.18.0,<2",
+  "uvicorn[standard]>=0.35.0,<1",
+]
+
+[dependency-groups]
+dev = [
+  "import-linter>=2.3,<3",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+tin-lite = "tin_lite.cli:main"
+tin-lite-worker = "tin_lite.worker:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tin_lite"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+# The studio toolkit runs inside the sandbox and drives ffmpeg, resvg, and its own sibling
+# scripts by design; the sandbox is the security boundary.
+"sandbox/studio/*.py" = ["S603", "S607", "S110", "S310", "E501"]

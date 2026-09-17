@@ -1,0 +1,620 @@
+{
+  "note": "Growth programs one level below the ten strategy families. `tin.coverage` says how much of the program Tin runs today: full (Tin does the work up to a founder review), partial (Tin does a named part), none (stays with the founder). `tin.workflows` are registry keys; the live runnable state per project comes from the plan run's `tin_state` input (system rows map to `system_*` run inputs via `input`), never from this file. `workflow_titles` maps every key to the title the founder sees in Tin; use titles in founder-facing text. `workflow_scope` is what each workflow actually does; never aim a workflow at work outside its scope. `rubric.json` and `score.py` rank these fifteen systems for a business; the plan never shows the profile or the scores. `tin.impact` is the share of a system's work Tin can carry today (0 to 1); the proposed scope and the levels order systems by fit × impact, the table by fit alone.",
+  "programs": [
+    {
+      "id": "organic-search-content",
+      "name": "Organic search content",
+      "family": "Search",
+      "what": "Editorial, comparison, alternative and answer pages that win the searches buyers already make.",
+      "fits_when": [
+        "buyers search for the problem or the category by name",
+        "the site can take new pages",
+        "the founder can wait months for compounding traffic"
+      ],
+      "weak_when": [
+        "the category is too new to be searched",
+        "nobody can publish to the site"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "full",
+        "workflows": [
+          "organic.audit",
+          "organic.keyword_plan",
+          "content.plan",
+          "style.capture",
+          "content.generate",
+          "content.answer_page",
+          "content.public_article"
+        ],
+        "integrations": [
+          "analytics.gsc"
+        ],
+        "founder_keeps": "publishing to the site and the final voice",
+        "impact": 0.7,
+        "impact_note": "Tin researches, plans and drafts every piece; the founder publishes and keeps the voice."
+      }
+    },
+    {
+      "id": "technical-seo",
+      "name": "Technical SEO",
+      "family": "Search",
+      "what": "Site health: titles, descriptions, indexing, canonical tags, speed, broken pages.",
+      "fits_when": [
+        "the site already gets impressions",
+        "pages ship with missing or duplicate metadata",
+        "the code lives on GitHub"
+      ],
+      "weak_when": [
+        "the site is one page",
+        "nobody can merge a pull request"
+      ],
+      "needs": {
+        "founder_hours": "min",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "full",
+        "workflows": [
+          "organic.audit",
+          "organic.technical_fix",
+          "site.health_improve"
+        ],
+        "integrations": [
+          "infra.github",
+          "analytics.gsc"
+        ],
+        "founder_keeps": "merging and deploying the pull requests",
+        "impact": 0.8,
+        "impact_note": "Tin audits and opens the fix as a pull request; the founder merges."
+      }
+    },
+    {
+      "id": "ai-visibility",
+      "name": "AI visibility",
+      "family": "Search",
+      "what": "Being found, cited and recommended when buyers ask AI assistants for tools and vendors.",
+      "fits_when": [
+        "buyers ask assistants which tool to use",
+        "named competitors already come up in AI answers",
+        "the product has a clear category"
+      ],
+      "weak_when": [
+        "buying is local, offline or relationship-led"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "full",
+        "workflows": [
+          "visibility.audit",
+          "organic.audit",
+          "content.answer_page"
+        ],
+        "integrations": [],
+        "founder_keeps": "publishing the pages and proof",
+        "impact": 0.6,
+        "impact_note": "Tin measures weekly and drafts answer pages; being cited still depends on what gets published."
+      }
+    },
+    {
+      "id": "paid-search",
+      "name": "Paid search",
+      "family": "Paid",
+      "what": "Ads on buyer intent queries with conversion tracking.",
+      "fits_when": [
+        "clear buyer queries exist",
+        "unit economics support a paid acquisition cost",
+        "there is a monthly budget"
+      ],
+      "weak_when": [
+        "no budget",
+        "no conversion tracking",
+        "long sales cycles with no lead capture"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "lots",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "none",
+        "workflows": [
+          "organic.keyword_plan"
+        ],
+        "integrations": [],
+        "founder_keeps": "campaigns, budget, bidding and tracking; the keyword plan can seed ad groups",
+        "impact": 0.1,
+        "impact_note": "Tin can seed keywords; campaigns, budget and bidding stay with the founder."
+      }
+    },
+    {
+      "id": "paid-social",
+      "name": "Paid social",
+      "family": "Paid",
+      "what": "Meta, TikTok, LinkedIn or YouTube ads with tested creative.",
+      "fits_when": [
+        "the product shows well in a short video",
+        "consumer or prosumer buyers",
+        "there is a creative and media budget"
+      ],
+      "weak_when": [
+        "a narrow technical buyer",
+        "no budget"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "lots",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "creative.product_demo",
+          "creative.character"
+        ],
+        "integrations": [],
+        "founder_keeps": "campaigns, targeting and spend; Tin makes the creative",
+        "impact": 0.2,
+        "impact_note": "Tin makes the creative; targeting and spend stay with the founder."
+      }
+    },
+    {
+      "id": "cold-outbound",
+      "name": "Cold outbound email",
+      "family": "Outbound",
+      "what": "Email sequences to a defined list of buyers, with follow-ups and reply handling.",
+      "fits_when": [
+        "buyer roles and companies can be named",
+        "the deal size justifies a reply from the founder",
+        "a sender mailbox exists"
+      ],
+      "weak_when": [
+        "consumer buyers",
+        "a price too low to justify replies"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "full",
+        "workflows": [
+          "outreach.email_shortlist",
+          "outreach.email_campaign"
+        ],
+        "integrations": [
+          "workspace.google"
+        ],
+        "founder_keeps": "approving every send, replying, and any list beyond the connected inbox",
+        "impact": 0.7,
+        "impact_note": "Tin builds the list, drafts, sends after approval and follows up; the founder replies."
+      }
+    },
+    {
+      "id": "founder-led-sales",
+      "name": "Founder-led sales",
+      "family": "Outbound",
+      "what": "Warm follow-ups, demos, calls and closing done by the founder.",
+      "fits_when": [
+        "deals are large enough for a call",
+        "agency, team or multi-tenant buyers",
+        "early stage with few customers"
+      ],
+      "weak_when": [
+        "pure self-serve at a low price"
+      ],
+      "needs": {
+        "founder_hours": "lots",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "outreach.email_shortlist",
+          "research.deep_dive"
+        ],
+        "integrations": [
+          "workspace.google"
+        ],
+        "founder_keeps": "the calls and the close; Tin builds the warm list and researches accounts",
+        "impact": 0.3,
+        "impact_note": "Tin builds the warm list and researches accounts; the calls and the close are the founder's."
+      }
+    },
+    {
+      "id": "product-led-growth",
+      "name": "Product-led growth",
+      "family": "Product-led",
+      "what": "A free path, fast activation, and loops inside the product that bring the next user.",
+      "fits_when": [
+        "self-serve signup exists",
+        "time to value is minutes",
+        "usage-based or tiered pricing"
+      ],
+      "weak_when": [
+        "sales-only",
+        "no free or trial path"
+      ],
+      "needs": {
+        "founder_hours": "lots",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "qa.signup_walkthrough",
+          "qa.product_audit",
+          "product.deep_dive",
+          "product.code_map",
+          "project.task"
+        ],
+        "integrations": [
+          "workspace.google",
+          "infra.github"
+        ],
+        "founder_keeps": "product decisions and shipping; Tin finds the breaks and proposes bounded fixes",
+        "impact": 0.4,
+        "impact_note": "Tin finds the breaks and proposes bounded fixes; product decisions and shipping are the founder's."
+      }
+    },
+    {
+      "id": "conversion-and-trust",
+      "name": "Conversion and trust",
+      "family": "Conversion & trust",
+      "what": "Landing page clarity, proof, pricing page, and signup friction.",
+      "fits_when": [
+        "traffic exists but signups are low",
+        "the hero does not name the buyer",
+        "the trial converts poorly"
+      ],
+      "weak_when": [
+        "there is no traffic to convert yet"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "qa.signup_walkthrough",
+          "site.health_improve",
+          "content.diagram",
+          "organic.audit"
+        ],
+        "integrations": [
+          "workspace.google",
+          "infra.github"
+        ],
+        "founder_keeps": "copy decisions and proof assets",
+        "impact": 0.4,
+        "impact_note": "Tin walks the signup and opens small fixes; copy and proof are the founder's."
+      }
+    },
+    {
+      "id": "owned-audience",
+      "name": "Owned audience",
+      "family": "Owned audience",
+      "what": "Newsletter, changelog, lifecycle and win-back email to people who already opted in.",
+      "fits_when": [
+        "a list or user base exists",
+        "releases ship on a cadence",
+        "retention matters more than reach"
+      ],
+      "weak_when": [
+        "no list",
+        "nothing to say monthly"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "content.public_article",
+          "project.weekly_brief"
+        ],
+        "integrations": [],
+        "founder_keeps": "the list, the tool and the sends; Tin drafts",
+        "impact": 0.3,
+        "impact_note": "Tin drafts; the list, the tool and the sends are the founder's."
+      }
+    },
+    {
+      "id": "earned-media-and-launches",
+      "name": "Earned media and launches",
+      "family": "Earned",
+      "what": "Launch posts, Show HN and Product Hunt, press, founder posts, short video.",
+      "fits_when": [
+        "the product is novel or visual",
+        "the founder will post and reply in public",
+        "a community for the category exists"
+      ],
+      "weak_when": [
+        "the founder will not post",
+        "the product is a commodity"
+      ],
+      "needs": {
+        "founder_hours": "lots",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "creative.product_demo",
+          "creative.character",
+          "content.public_article",
+          "content.diagram"
+        ],
+        "integrations": [],
+        "founder_keeps": "posting and engaging; Tin makes the article, video and figures",
+        "impact": 0.3,
+        "impact_note": "Tin makes the article, video and figures; posting and engaging are the founder's."
+      }
+    },
+    {
+      "id": "platform-and-marketplaces",
+      "name": "Platform and marketplaces",
+      "family": "Platform",
+      "what": "Listings where buyers already shop: integration directories, package registries, app stores, agent and tool registries.",
+      "fits_when": [
+        "the product is an API, plugin or integration",
+        "the ecosystem has directories buyers browse"
+      ],
+      "weak_when": [
+        "a standalone consumer app with no ecosystem"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "weeks"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "research.deep_dive",
+          "project.task"
+        ],
+        "integrations": [],
+        "founder_keeps": "accounts and submissions; Tin finds the directories and prepares listing copy",
+        "impact": 0.3,
+        "impact_note": "Tin finds the directories and drafts listings; accounts and submissions are the founder's."
+      }
+    },
+    {
+      "id": "community-and-events",
+      "name": "Community and events",
+      "family": "In person",
+      "what": "Meetups, Discord and Slack communities, hackathons, conferences.",
+      "fits_when": [
+        "buyers gather in a few communities",
+        "the founder has hours to show up"
+      ],
+      "weak_when": [
+        "the founder has minimal hours",
+        "buyers are dispersed"
+      ],
+      "needs": {
+        "founder_hours": "lots",
+        "budget": "some",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "none",
+        "workflows": [
+          "research.deep_dive"
+        ],
+        "integrations": [],
+        "founder_keeps": "showing up; Tin can map where the buyers gather",
+        "impact": 0.1,
+        "impact_note": "Tin can map where buyers gather; showing up is the founder's."
+      }
+    },
+    {
+      "id": "partnerships-and-channel",
+      "name": "Partnerships and channel",
+      "family": "Platform",
+      "what": "Agencies, resellers, co-marketing and integration partners who bring their customers.",
+      "fits_when": [
+        "agencies or multi-tenant buyers exist",
+        "complementary tools share the buyer",
+        "some proof exists to show a partner"
+      ],
+      "weak_when": [
+        "too early to show a partner anything"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "research.deep_dive",
+          "outreach.email_shortlist",
+          "outreach.email_campaign"
+        ],
+        "integrations": [
+          "workspace.google"
+        ],
+        "founder_keeps": "the terms and the relationship",
+        "impact": 0.3,
+        "impact_note": "Tin researches and drafts the outreach; the terms and the relationship are the founder's."
+      }
+    },
+    {
+      "id": "pricing-and-packaging",
+      "name": "Pricing and packaging",
+      "family": "Pricing & packaging",
+      "what": "Tiers, trials, add-ons and packaging tests.",
+      "fits_when": [
+        "conversion or expansion is the gap",
+        "enough volume to read a test"
+      ],
+      "weak_when": [
+        "too little volume to learn anything"
+      ],
+      "needs": {
+        "founder_hours": "some",
+        "budget": "none",
+        "time_to_signal": "months"
+      },
+      "tin": {
+        "coverage": "partial",
+        "workflows": [
+          "research.deep_dive"
+        ],
+        "integrations": [],
+        "founder_keeps": "the decision and the implementation; Tin researches the options",
+        "impact": 0.2,
+        "impact_note": "Tin researches the options; the decision and the change are the founder's."
+      }
+    }
+  ],
+  "systems_checklist": [
+    {
+      "system": "Website framework and hosting",
+      "ask": "What is the site built with and where is it hosted?",
+      "tin_integration": null,
+      "input": "system_hosting"
+    },
+    {
+      "system": "Code repository",
+      "ask": "Where does the site's code live, and which repository serves the site?",
+      "tin_integration": "infra.github",
+      "when": "the code is on GitHub",
+      "input": "system_repository"
+    },
+    {
+      "system": "Product analytics",
+      "ask": "Which analytics tool records visits and signups (PostHog, GA4, Plausible, Mixpanel)?",
+      "tin_integration": null,
+      "input": "system_analytics"
+    },
+    {
+      "system": "Search Console",
+      "ask": "Is the site verified in Google Search Console, and under which account?",
+      "tin_integration": "analytics.gsc",
+      "when": "the property is verified",
+      "input": "system_search_console"
+    },
+    {
+      "system": "Email and calendar",
+      "ask": "Which mailbox would send outreach and receive replies (Google Workspace, Gmail, Outlook)?",
+      "tin_integration": "workspace.google",
+      "when": "the mailbox is Google",
+      "input": "system_mailbox"
+    },
+    {
+      "system": "Payments and billing",
+      "ask": "What bills customers (Stripe, Paddle, invoices)?",
+      "tin_integration": null,
+      "input": "system_payments"
+    },
+    {
+      "system": "CRM or lead list",
+      "ask": "Where do leads and deals live, if anywhere?",
+      "tin_integration": null,
+      "input": "system_crm"
+    },
+    {
+      "system": "Support inbox or chat",
+      "ask": "Where do customers write when something breaks?",
+      "tin_integration": null,
+      "input": "system_support"
+    },
+    {
+      "system": "Documentation",
+      "ask": "Where do the docs live, and can they be edited from the repository?",
+      "tin_integration": null,
+      "input": "system_docs"
+    },
+    {
+      "system": "Newsletter or lifecycle email",
+      "ask": "Which tool sends to the list, if there is one?",
+      "tin_integration": null,
+      "input": "system_newsletter"
+    },
+    {
+      "system": "Ad accounts",
+      "ask": "Which ad platforms have an account, and is anything running?",
+      "tin_integration": null,
+      "input": "system_ads"
+    }
+  ],
+  "workflow_titles": {
+    "content.deliver": "Prepare article PR",
+    "organic.traffic_system": "Run the organic traffic system",
+    "style.capture": "Capture writing style",
+    "organic.technical_fix": "Fix an audited technical issue",
+    "content.plan": "Plan upcoming content",
+    "content.generate": "Draft planned content",
+    "organic.keyword_plan": "Plan keyword opportunities",
+    "organic.audit": "Audit organic visibility",
+    "content.design_md": "Generate project design",
+    "project.memory": "Garden project memory",
+    "scan.report": "Scan project",
+    "site.health_improve": "Improve site health",
+    "visibility.audit": "Audit AI visibility",
+    "content.answer_page": "Draft an answer page",
+    "project.weekly_brief": "Create a weekly project brief",
+    "project.task": "One-off project task",
+    "research.deep_dive": "Research a question deeply",
+    "content.public_article": "Draft a public article",
+    "content.diagram": "Create a diagram",
+    "outreach.email_shortlist": "Build an email outreach shortlist",
+    "outreach.email_campaign": "Run an email outreach campaign",
+    "qa.signup_walkthrough": "Walk the signup as a new user",
+    "product.code_map": "Map the product from its code",
+    "product.deep_dive": "Map what the product actually does",
+    "qa.product_audit": "Audit the product feature by feature",
+    "creative.character": "Design a brand character",
+    "creative.product_demo": "Make a product demo video"
+  },
+  "workflow_scope": {
+    "content.deliver": "Adapt an existing approved content.generate article to the connected website repository and open an unmerged PR. Requires source_run_id and expected_repository; no new drafting or implicit approval. Reuses the normal metered Codex procedure runner. Exact Markdown source preservation is checked; repository build and rendered equivalence are separate checks, never implied. CMS and WordPress publication require future connectors.",
+    "organic.traffic_system": "Audit your website and research buyer searches, then save an editable content plan to My system. Optionally propose one technical fix as an unmerged GitHub PR. Does not write articles, send outreach, merge or publish.",
+    "style.capture": "Use your coding agent to select writing samples, or add samples here. Save an editable voice guide for future content. Nothing is published.",
+    "organic.technical_fix": "Recheck one missing-title or missing-description finding and propose a verified PR. Supports exact static HTML and bounded Python-wheel HTML templates. Lists unsupported pages separately. If no safe repair is available, explain why without a PR. Never merges or deploys; GitHub may run its configured PR checks.",
+    "content.plan": "Turn an audit and keyword research into an editable two-week to six-month roadmap. Save to My system to prepare weekly batches. Does not write articles or publish.",
+    "content.generate": "Draft one selected brief from an initialized content program, using the project writing guide when available. Saves a separate reviewable Markdown draft with factual checks. Requires program_id; omit item_id to select the next eligible article, or select an explicit item through get_content_draft_sources. On demand only. Optional pinned repository delivery opens an unmerged PR only after article approval; otherwise use content.deliver for an approved source. Does not merge, publish, or change the roadmap.",
+    "organic.keyword_plan": "Research buyer searches, competitor keywords, and a bounded sample of Google results. Get an evidence-backed keyword inventory for content planning. No audit or GitHub required; does not create a calendar, write articles, or publish.",
+    "organic.audit": "Audit technical SEO and AI visibility (GEO). Check up to 100 public pages and see whether AI answers mention, cite, or recommend your business. Get a report, actionable findings, and supporting evidence. No GitHub required.",
+    "content.design_md": "Analyze a project repository and publish its DESIGN.md.",
+    "project.memory": "Consolidate durable project outputs into the project wiki.",
+    "scan.report": "Review durable project knowledge against the system scanning guide and publish SCAN.md.",
+    "site.health_improve": "Inspect one public site against its selected GitHub repository, make one bounded mechanical improvement, and open a pull request for review. When no safe change is justified, save a no-change report without opening a PR.",
+    "visibility.audit": "Measure whether Luna finds and recommends a chosen target across five target-blind buyer questions, then publish AI_VISIBILITY.md.",
+    "content.answer_page": "Create a public-facing Markdown content draft from the latest AI visibility findings; not for general advice or internal business questions.",
+    "project.weekly_brief": "Summarize what moved, what needs attention, and the smallest useful next steps from this project's durable week of activity.",
+    "project.task": "Use an isolated Codex task when the founder asks Tin to inspect, research, or change project files and no narrower registered workflow fits.",
+    "research.deep_dive": "Test a project question and its upstream assumptions against current, source-backed evidence.",
+    "content.public_article": "Turn durable project evidence and original thinking into a rigorous, reviewable public article.",
+    "content.diagram": "Turn a process or system into one clear Tin-styled diagram whose Mermaid source stays editable in project Files.",
+    "outreach.email_shortlist": "Review the connected Gmail and Calendar history to create a bounded, evidence-backed outreach shortlist in project Files.",
+    "outreach.email_campaign": "Snapshot selected shortlist recipients and exact email copy for approval, then send with reply-aware follow-up timers.",
+    "qa.signup_walkthrough": "Sign up for your product as a stranger with a Tin-owned test account, verify the email, reach first activation, and report every break along the way.",
+    "product.code_map": "Read the connected GitHub repository and write the Code map section of project memory: every user-facing surface with its exposure, plans and gating, integrations, and tech stack, each cited to file and line.",
+    "product.deep_dive": "Read the docs, sign in and use your product with a Tin-owned account, reconcile with the code map, and write the Feature map section of project memory with evidence on every feature.",
+    "qa.product_audit": "Exercise every feature in the project's Feature map as a user with a Tin-owned account and report what works, what is broken, and what to improve, with reproducible evidence.",
+    "creative.character": "Design a cute, on-brand vector mascot for the product as an animatable SVG character in project Files (three mouth shapes, a blink, and a payoff expression), ready to narrate demo videos and appear in marketing. Tin reads the product page and project memory itself and asks one model for the drawing; about two minutes, no sandbox.",
+    "creative.product_demo": "Capture the founder's live product at phone size and render a smooth 9:16 short-form demo video (TikTok, Reels, Shorts) with a pain hook, voiceover, word-synced captions, tap and scroll motion, and an optional narrating character from project Files."
+  }
+}

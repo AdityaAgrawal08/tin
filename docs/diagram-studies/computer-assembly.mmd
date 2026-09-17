@@ -1,0 +1,45 @@
+graph TD
+  %% tin:composition
+  subgraph top
+    direction LR
+    %% tin:group layout
+    broker["Codex broker<br/>Switchboard · account pool"]:::step
+    proxy["Egress proxy → OpenAI<br/>One static IP per pool"]:::surface
+  end
+  subgraph main
+    direction LR
+    %% tin:group layout
+    subgraph inputs
+      direction TD
+      %% tin:group layout
+      code[("Code repository<br/>code.storage / GitHub")]:::store
+      state[("State + wiki repository<br/>Plans · memory · sessions")]:::store
+    end
+    subgraph sandbox["E2B sandbox · assembled on demand"]
+      direction TD
+      %% tin:group frame
+      codex["Codex app-server<br/>Active agent turn"]:::step
+      toolchain["Toolchain<br/>Baked image snapshot"]:::step
+      sessions["Session files<br/>CODEX_HOME=/workspace/sessions"]:::step
+    end
+    subgraph services
+      direction TD
+      %% tin:group layout
+      gateway["Integration gateway<br/>Run-bound grants · effect ledger"]:::surface
+      browser["Kernel browser<br/>Remote session per task"]:::surface
+    end
+  end
+  subgraph outside["Never enters the sandbox"]
+    direction LR
+    %% tin:group lane
+    profiles["Browser profiles<br/>Browser-service contexts"]:::ghost
+    archives["Session archives<br/>GCS · pruned history"]:::ghost
+    secrets["Provider secrets<br/>Injected only at the gateway"]:::ghost
+  end
+  broker -->|short-lived auth.json| codex
+  codex -.->|HTTPS_PROXY| proxy
+  code -->|blobless clone| toolchain
+  state -->|pull state| sessions
+  sessions -->|commit deltas| state
+  codex -->|provider calls| gateway
+  codex -->|remote CDP| browser

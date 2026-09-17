@@ -1,0 +1,787 @@
+"""Trusted, receipt-backed activities for the one native organic audit workflow."""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from decimal import Decimal
+from uuid import UUID
+
+from temporalio import activity
+from temporalio.exceptions import ApplicationError
+
+from tin_lite.dataforseo import DataForSEO, DataForSEOError
+from tin_lite.organic_audit import (
+    AUDIT_KEY,
+    AUDIT_POLICY,
+    LEGACY_AUDIT_POLICY,
+    MARKETS,
+    V2_AUDIT_POLICY,
+    V3_AUDIT_POLICY,
+    V4_AUDIT_POLICY,
+    V5_AUDIT_POLICY,
+    V6_AUDIT_POLICY,
+    V7_AUDIT_POLICY,
+    audit_paths,
+    audit_policy,
+    build_documents,
+    digest,
+    grounded_preparation,
+    normalize_pages,
+)
+from tin_lite.organic_audit_ai import (
+    AI_SCHEMAS,
+    AnswerJudgment,
+    AuditValidationError,
+    BuyerPanel,
+    PanelValidation,
+    ai_contract,
+    classify,
+    classify_absent_target,
+    payload,
+    read_response,
+    response_diagnostics,
+    summarize,
+    validate_panel,
+)
+from tin_lite.organic_audit_panel import prepare_panel
+from tin_lite.organic_audit_publication import publish_audit
+from tin_lite.organic_audit_scope import audit_hosts, resolve_site_identity
+from tin_lite.usage_capture import external_usage_scope
+
+
+class OrganicAuditActivities:
+    def __init__(
+        self,
+        *,
+        database,
+        storage,
+        settings,
+        responses=None,
+        provider=None,
+        site_resolver=resolve_site_identity,
+    ) -> None:
+        self.db, self.storage, self.settings = database, storage, settings
+        self.responses = responses
+        self.site_resolver = site_resolver
+        login, password = (
+            getattr(settings, "dataforseo_login", None),
+            getattr(settings, "dataforseo_password", None),
+        )
+        self.provider = provider or (
+            DataForSEO(login.get_secret_value(), password.get_secret_value())
+            if login and password
+            else None
+        )
+
+    @staticmethod
+    def key(run_id: str, stage: str) -> str:
+        return f"organic:{UUID(run_id)}:{stage}"
+
+    async def _active(self, run_id: str, *, conn=None):
+        run = await self.db.get_run(UUID(run_id), conn=conn)
+        if run is None or run.executor != AUDIT_KEY or run.status.value in {"failed", "stopped"}:
+            raise ApplicationError("Organic audit is not active.", non_retryable=True)
+        return run
+
+    async def _result(self, run_id: str, stage: str) -> dict | None:
+        receipt = await self.db.get_effect(self.key(run_id, stage))
+        return receipt.result if receipt and receipt.status == "completed" else None
+
+    async def _policy_version(self, run_id: str) -> str:
+        scope = await self._result(run_id, "scope")
+        # Existing v1 receipts predate this field. Never reinterpret their policy.
+        return (scope or {}).get("policy_version", LEGACY_AUDIT_POLICY["version"])
+
+    async def _save(self, run_id: str, stage: str, result: dict) -> dict:
+        key = self.key(run_id, stage)
+        async with self.db.effect_lock(key, "organic.audit") as (conn, existing):
+            if existing and existing.status == "completed":
+                return existing.result
+            await self.db.start_effect(conn, execution_key=key, operation="organic.audit")
+            await self.db.complete_effect(conn, execution_key=key, result=result)
+        return result
+
+    async def _reserve(self, run_id: str, stage: str, amount: str) -> bool:
+        scope = await self._result(run_id, "scope")
+        key = self.key(run_id, "budget")
+        async with self.db.effect_lock(key, "organic.audit") as (conn, existing):
+            ledger = dict(existing.result or {}) if existing else {}
+            if stage in ledger:
+                return True
+            exposure = sum((Decimal(value) for value in ledger.values()), Decimal(0))
+            billing = getattr(self.db, "billing", None)
+            if billing is not None and audit_policy(
+                scope.get("policy_version", LEGACY_AUDIT_POLICY["version"])
+            ).get("runtime_budget"):
+                observed = await billing.run_operation_exposure(conn, UUID(run_id))
+                if observed is not None:
+                    exposure = Decimal(observed) / 1_000_000_000
+            if exposure + Decimal(amount) > Decimal(scope["max_cost_usd"]):
+                return False
+            ledger[stage] = amount
+            await self.db.start_effect(conn, execution_key=key, operation="organic.audit")
+            await self.db.save_effect_progress(conn, execution_key=key, result=ledger)
+        return True
+
+    async def _paid(
+        self, run_id: str, stage: str, request: dict, amount: str, call, *, recover=None
+    ) -> dict:
+        """At most one dispatch per saved intent, not a claim of exactly-once billing.
+
+        A worker dying between intent and dispatch sacrifices availability rather
+        than risking a duplicate charge. Crawl metadata can recover that ambiguity.
+        Unrecoverable model requests become missing observations, never fresh samples.
+        """
+        key = self.key(run_id, stage)
+        async with self.db.effect_lock(key, "organic.audit") as (conn, existing):
+            if existing and existing.status == "completed":
+                return existing.result
+            await self._active(run_id, conn=conn)
+            fingerprint = digest(request)
+            saved = existing.result or {} if existing else {}
+            if saved and saved.get("request_sha256") != fingerprint:
+                raise ApplicationError(
+                    "Audit request changed after its intent was saved.", non_retryable=True
+                )
+            await self.db.start_effect(conn, execution_key=key, operation="organic.audit")
+            if saved.get("attempted_at"):
+                result = await recover(saved) if recover else None
+                if stage == "crawl_submit" and result and result.get("status") == "completed":
+                    from tin_lite.usage_capture import recover_tool_observation
+
+                    await recover_tool_observation(
+                        self.db,
+                        conn,
+                        run_id=run_id,
+                        step=stage,
+                        endpoint="on_page/task_post",
+                        cost=result["value"].get("reported_cost_usd"),
+                    )
+                if result is None:
+                    result = {"status": "unknown", "reason": "unconfirmed_previous_request"}
+            elif not await self._reserve(run_id, stage, amount):
+                result = {"status": "unavailable", "reason": "spending_limit"}
+            else:
+                await self._active(run_id, conn=conn)
+                saved = {
+                    "request_sha256": fingerprint,
+                    "attempted_at": datetime.now(UTC).isoformat(),
+                    "reservation_usd": amount,
+                }
+                await self.db.save_effect_progress(conn, execution_key=key, result=saved)
+                await self._active(run_id, conn=conn)
+                try:
+                    with external_usage_scope(self.db, conn, run_id, stage, maximum_usd=amount):
+                        result = {"status": "completed", "value": await call()}
+                except Exception as exc:
+                    from tin_lite.billing_contracts import BillingError
+
+                    if isinstance(exc, BillingError):
+                        result = {"status": "unavailable", "reason": "spending_limit"}
+                    # Preserve only a safe product fact, not raw provider errors.
+                    # Leave crawl intent incomplete so a later attempt can recover it.
+                    elif recover:
+                        raise ApplicationError(
+                            "Crawl submission needs metadata reconciliation."
+                        ) from None
+                    elif await self._policy_version(run_id) != LEGACY_AUDIT_POLICY[
+                        "version"
+                    ] and isinstance(exc, AuditValidationError):
+                        result = {"status": "unavailable", "reason": exc.reason}
+                        if getattr(exc, "diagnostics", None) is not None:
+                            result["diagnostics"] = exc.diagnostics
+                    else:
+                        result = {"status": "unknown", "reason": "provider_result_unavailable"}
+                        failure_kind = getattr(exc, "failure_kind", None)
+                        if failure_kind in {"timeout", "connection", "http", "api"}:
+                            result["diagnostics"] = {"provider_failure_kind": failure_kind}
+            result = {**saved, **result}
+            await self.db.complete_effect(conn, execution_key=key, result=result)
+            return result
+
+    async def _model(self, run_id: str, stage: str, request: dict, *, search: bool) -> dict:
+        if self.responses is None:
+            return await self._save(
+                run_id, stage, {"status": "unavailable", "reason": "model_not_configured"}
+            )
+
+        policy_version = await self._policy_version(run_id)
+        policy = audit_policy(policy_version)
+        if stage.startswith("answer:") and policy.get("answer_timeout_seconds"):
+            request = {**request, "timeout": policy["answer_timeout_seconds"]}
+
+        async def call():
+            response = await self.responses.create(request)
+            try:
+                return read_response(response, search=search, policy_version=policy_version)
+            except AuditValidationError as exc:
+                if grounded_preparation(policy_version):
+                    exc.diagnostics = response_diagnostics(response)
+                raise
+            except (AttributeError, KeyError, TypeError, ValueError):
+                raise AuditValidationError("response_invalid") from None
+
+        return await self._paid(
+            run_id,
+            stage,
+            request,
+            AUDIT_POLICY["search_reservation_usd" if search else "text_reservation_usd"],
+            call,
+        )
+
+    @activity.defn
+    async def organic_prepare(self, run_id: str) -> None:
+        if await self._result(run_id, "scope"):
+            return
+        run = await self._active(run_id)
+        maximum = Decimal(str(getattr(self.settings, "organic_audit_max_cost_usd", 0)))
+        if (
+            self.provider is None
+            or not maximum.is_finite()
+            or maximum < Decimal(AUDIT_POLICY["crawl_reservation_usd"])
+        ):
+            raise ApplicationError(
+                "Configure DataForSEO and an explicit organic-audit spending limit before running.",
+                type="organic_audit_not_configured",
+                non_retryable=True,
+            )
+        if not run.definition_commit_sha:
+            raise ApplicationError("Organic audit has no pinned definition.", non_retryable=True)
+        definition = json.loads(
+            await self.storage.read_canonical_artifact(
+                repo_id="registry/workflows",
+                commit_sha=run.definition_commit_sha,
+                path="workflows/organic.audit.json",
+            )
+        )
+        pinned_policy = definition.get("audit_policy")
+        if (
+            pinned_policy
+            not in (
+                LEGACY_AUDIT_POLICY,
+                V2_AUDIT_POLICY,
+                V3_AUDIT_POLICY,
+                V4_AUDIT_POLICY,
+                V5_AUDIT_POLICY,
+                V6_AUDIT_POLICY,
+                V7_AUDIT_POLICY,
+                AUDIT_POLICY,
+            )
+            or definition.get("audit_instructions") != ai_contract(pinned_policy["version"])
+            or definition.get("audit_schemas") != AI_SCHEMAS
+            or definition.get("model_route")
+            != {
+                "key": "organic.audit.visibility.v1",
+                "provider": "openai",
+                "model": AUDIT_POLICY["model"],
+                "capabilities": ["json_schema", "text"],
+            }
+        ):
+            raise ApplicationError(
+                "The pinned audit version is not supported by this worker.", non_retryable=True
+            )
+        inputs = run.input
+        from tin_lite.organic_audit_completion import KIND, prepare_completion
+
+        if (getattr(run, "prerequisite_evidence", None) or {}).get("kind") == KIND:
+            if pinned_policy != AUDIT_POLICY:
+                raise ValueError("Audit completion requires the current compatible policy")
+            await prepare_completion(self, run)
+            return
+        url, host = await self.provider.validate_target(inputs["site_url"])
+        identity = (
+            {"site_identity": await self.site_resolver(url)}
+            if pinned_policy.get("verified_www_redirects")
+            else {}
+        )
+        if inputs["market"] not in MARKETS:
+            raise ApplicationError(
+                "This market is not supported by the English audit.", non_retryable=True
+            )
+        await self._save(
+            run_id,
+            "scope",
+            {
+                "url": url,
+                "host": host,
+                "market": inputs["market"],
+                "language": "en",
+                "focus": inputs.get("focus", ""),
+                "started_at": datetime.now(UTC).isoformat(),
+                "max_cost_usd": str(maximum),
+                "policy_version": pinned_policy["version"],
+                **identity,
+            },
+        )
+        await self.db.mark_run_running(UUID(run_id))
+
+    @activity.defn
+    async def organic_start_crawl(self, run_id: str) -> None:
+        scope = await self._result(run_id, "scope")
+        request = self.provider.crawl_request(host=scope["host"], tag=f"tin-organic-{run_id}")
+
+        async def recover(saved):
+            found = await self.provider.recover(request=request, submitted_at=saved["attempted_at"])
+            if found:
+                return {"status": "completed", "value": found}
+            # No match is not proof that a paid request was never accepted. Keep the
+            # intent pending for bounded Temporal retries; never call task_post again.
+            raise ApplicationError("Crawl task is not yet reconciled; no duplicate was submitted.")
+
+        await self._paid(
+            run_id,
+            "crawl_submit",
+            request,
+            AUDIT_POLICY["crawl_reservation_usd"],
+            lambda: self.provider.submit(request),
+            recover=recover,
+        )
+
+    @activity.defn
+    async def organic_poll_crawl(self, run_id: str) -> bool:
+        if await self._result(run_id, "crawl"):
+            return True
+        await self._active(run_id)
+        submission = await self._result(run_id, "crawl_submit")
+        if not submission or submission["status"] != "completed":
+            await self._save(
+                run_id,
+                "crawl",
+                {
+                    "status": "unavailable",
+                    "pages": [],
+                    "note": "Crawl was not confirmed; no second crawl was submitted.",
+                },
+            )
+            return True
+        task_id = submission["value"]["task_id"]
+        summary = await self.provider.summary(task_id)
+        if summary["crawl_progress"] != "finished":
+            await self.db.project_run_progress(
+                run_id=UUID(run_id),
+                mode="indeterminate",
+                step="crawl",
+                summary="Collecting the bounded public-site crawl.",
+            )
+            return False
+        scope = await self._result(run_id, "scope")
+        hosts = audit_hosts(scope)
+        if summary.get("domain") not in {None, *hosts}:
+            await self._save(
+                run_id,
+                "crawl",
+                {
+                    "status": "unavailable",
+                    "pages": [],
+                    "note": "The crawler resolved a different host; results were excluded.",
+                },
+            )
+            return True
+        raw_pages = await self.provider.pages(task_id)
+        pages = normalize_pages(raw_pages, scope["host"], aliases=hosts)
+        status = (
+            "completed"
+            if pages and summary.get("extended_crawl_status") in {None, "no_errors"}
+            else "partial"
+        )
+        await self._save(
+            run_id,
+            "crawl",
+            {
+                "status": status,
+                "pages": pages,
+                "summary": summary,
+                "task_id": task_id,
+                "note": "Static HTML only; no JavaScript or resource rendering.",
+                **(
+                    {
+                        "collection": {
+                            "provider_html_pages": len(raw_pages),
+                            "retained_html_pages": len(pages),
+                            "excluded_html_pages": len(raw_pages) - len(pages),
+                        }
+                    }
+                    if audit_policy(
+                        scope.get("policy_version", LEGACY_AUDIT_POLICY["version"])
+                    ).get("verified_www_redirects")
+                    else {}
+                ),
+            },
+        )
+        return True
+
+    @activity.defn
+    async def organic_end_crawl(self, run_id: str) -> None:
+        if await self._result(run_id, "crawl"):
+            return
+        submission = await self._result(run_id, "crawl_submit")
+        stopped = False
+        pages = []
+        if self.provider and submission and submission["status"] == "completed":
+            try:
+                await self.provider.stop(submission["value"]["task_id"])
+                stopped = True
+            except DataForSEOError:
+                pass
+            scope = await self._result(run_id, "scope")
+            try:
+                pages = normalize_pages(
+                    await self.provider.pages(submission["value"]["task_id"]),
+                    scope["host"],
+                    aliases=audit_hosts(scope),
+                )
+            except (DataForSEOError, ValueError):
+                pass
+        await self._save(
+            run_id,
+            "crawl",
+            {
+                "status": "partial",
+                "pages": pages,
+                "note": "Crawl collection reached its time or retry limit.",
+                "provider_stop_confirmed": stopped,
+            },
+        )
+
+    @activity.defn
+    async def organic_prepare_panel(self, run_id: str) -> int:
+        if grounded_preparation(await self._policy_version(run_id)):
+            return await prepare_panel(self, run_id)
+        panel = await self._result(run_id, "panel")
+        if panel:
+            return panel["planned_observations"] if panel.get("status") == "completed" else 0
+        scope = await self._result(run_id, "scope")
+        policy_version = await self._policy_version(run_id)
+        request = payload(
+            stage="panel",
+            data={"website": scope["url"], "market": scope["market"]},
+            schema=BuyerPanel,
+            market=scope["market"],
+            search=True,
+            policy_version=policy_version,
+        )
+        research = await self._model(run_id, "panel_research", request, search=True)
+        result = {"status": "unavailable", "reason": "public_identity_or_panel_not_validated"}
+        try:
+            if research["status"] == "completed":
+                panel = validate_panel(research["value"], scope["host"])
+                judgment = await self._model(
+                    run_id,
+                    "panel_validation",
+                    payload(
+                        stage="validate",
+                        data={
+                            "website": scope["url"],
+                            "research": research["value"],
+                            "panel": panel,
+                        },
+                        schema=PanelValidation,
+                        market=scope["market"],
+                        search=False,
+                        policy_version=policy_version,
+                    ),
+                    search=False,
+                )
+                if (
+                    judgment["status"] == "completed"
+                    and PanelValidation.model_validate_json(judgment["value"]["text"]).accepted
+                ):
+                    result = {"status": "completed", **panel}
+        except ValueError:
+            pass
+        result = await self._save(run_id, "panel", result)
+        return result["planned_observations"] if result["status"] == "completed" else 0
+
+    @activity.defn
+    async def organic_observe(self, control: dict) -> None:
+        run_id, index = control["run_id"], control["index"]
+        if await self._result(run_id, f"observation:{index}"):
+            return
+        await self._active(run_id)
+        scope, panel = await self._result(run_id, "scope"), await self._result(run_id, "panel")
+        policy_version = await self._policy_version(run_id)
+        modern = policy_version != LEGACY_AUDIT_POLICY["version"]
+        if type(index) is not int or not 0 <= index < panel["planned_observations"]:
+            raise ApplicationError(
+                "Observation index is outside its frozen panel.", non_retryable=True
+            )
+        question = panel["questions"][index // 2]["question"]
+        answer = await self._model(
+            run_id,
+            f"answer:{index}",
+            payload(
+                stage="answer",
+                data=question,
+                market=scope["market"],
+                search=True,
+                policy_version=policy_version,
+            ),
+            search=True,
+        )
+        result = {
+            "status": "unavailable",
+            "index": index,
+            "question_index": index // 2,
+            "repetition": index % 2 + 1,
+            "answer": answer,
+        }
+        absent = (
+            classify_absent_target(answer["value"], panel)
+            if modern and answer["status"] == "completed"
+            else None
+        )
+        if absent is not None:
+            result.update(
+                status="completed", classification=absent, scoring_method="target_name_absent"
+            )
+        elif answer["status"] == "completed":
+            judgment = await self._model(
+                run_id,
+                f"judge:{index}",
+                payload(
+                    stage="judge",
+                    data={
+                        "answer": answer["value"]["text"],
+                        "name": panel["name"],
+                        "aliases": panel["aliases"],
+                    },
+                    schema=AnswerJudgment,
+                    market=scope["market"],
+                    search=False,
+                    policy_version=policy_version,
+                ),
+                search=False,
+            )
+            if judgment["status"] == "completed":
+                try:
+                    result.update(
+                        {
+                            "status": "completed",
+                            "classification": classify(answer["value"], judgment["value"], panel),
+                            "judgment_receipt": {
+                                "response_id": judgment["value"]["response_id"],
+                                "usage": judgment["value"]["usage"],
+                            },
+                        }
+                    )
+                    if modern:
+                        result["scoring_method"] = "evidence_checked_judge"
+                except ValueError as exc:
+                    result["reason"] = (
+                        exc.reason
+                        if modern and isinstance(exc, AuditValidationError)
+                        else "invalid_answer_judgment"
+                    )
+                    if modern:
+                        result["failure_stage"] = "grading"
+            elif modern:
+                result.update(
+                    reason=judgment.get("reason", "judgment_invalid"), failure_stage="grading"
+                )
+        elif modern:
+            result.update(reason=answer.get("reason", "not_recorded"), failure_stage="answer")
+        if len(json.dumps(result, ensure_ascii=False).encode()) > audit_policy(policy_version).get(
+            "max_observation_bytes", 21_000
+        ):
+            result = {
+                "status": "unavailable",
+                "index": index,
+                "question_index": index // 2,
+                "repetition": index % 2 + 1,
+                "answer": answer,
+                "reason": "classification_exceeded_evidence_budget",
+            }
+            if modern:
+                result["failure_stage"] = "grading"
+        await self._save(run_id, f"observation:{index}", result)
+        await self.db.project_run_progress(
+            run_id=UUID(run_id),
+            mode="units",
+            step="ai_visibility",
+            current=index + 1,
+            total=panel["planned_observations"],
+            summary="Observing the frozen buyer-question panel.",
+        )
+
+    @activity.defn
+    async def organic_brand_checks(self, run_id: str) -> None:
+        if await self._result(run_id, "brand_checks"):
+            return
+        panel = await self._result(run_id, "panel")
+        if not panel or panel.get("status") != "completed":
+            await self._save(run_id, "brand_checks", {"status": "unavailable", "observations": []})
+            return
+        scope = await self._result(run_id, "scope")
+        policy_version = await self._policy_version(run_id)
+        questions = [
+            f"What does {panel['name']} at {scope['url']} do, and which buyers is it for?",
+            "What publicly stated pricing and key limitations does "
+            f"{panel['name']} at {scope['url']} have?",
+        ]
+        answers = []
+        for index, question in enumerate(questions):
+            result = await self._model(
+                run_id,
+                f"brand:{index}",
+                payload(
+                    stage="answer",
+                    data=question,
+                    market=scope["market"],
+                    search=True,
+                    policy_version=policy_version,
+                ),
+                search=True,
+            )
+            answers.append({"question": question, "result": result})
+        await self._save(
+            run_id,
+            "brand_checks",
+            {
+                "status": "observed"
+                if all(a["result"]["status"] == "completed" for a in answers)
+                else "partial",
+                "observations": answers,
+                "note": "Qualitative branded probes, separate from the unbranded baseline.",
+            },
+        )
+
+    @activity.defn
+    async def organic_publish(self, run_id: str) -> None:
+        key = self.key(run_id, "publish")
+        async with self.db.effect_lock(key, "organic.audit") as (conn, existing):
+            if existing and existing.status == "completed":
+                return
+            run = await self._active(run_id, conn=conn)
+            project = await self.db.get_project(run.project_id, conn=conn)
+            artifacts = await self._result(run_id, "artifacts")
+            if not artifacts:
+                scope, crawl = (
+                    await self._result(run_id, "scope"),
+                    await self._result(run_id, "crawl"),
+                )
+                panel = await self._result(run_id, "panel")
+                panel = panel if panel and panel.get("status") == "completed" else None
+                observations = [
+                    await self._result(run_id, f"observation:{index}")
+                    or {"status": "unavailable", "index": index}
+                    for index in range(panel["planned_observations"] if panel else 0)
+                ]
+                budget = await self.db.get_effect(self.key(run_id, "budget"))
+                policy_version = await self._policy_version(run_id)
+                ai = summarize(panel, observations, policy_version=policy_version)
+                ai["public_research"] = await self._result(run_id, "panel_research")
+                ai["panel_validation"] = await self._result(run_id, "panel_validation")
+                if grounded_preparation(policy_version):
+                    ai["preparation"] = await self._result(run_id, "panel_preparation")
+                    ai["preparation_receipts"] = {
+                        stage: await self._result(run_id, stage)
+                        for stage in (
+                            "panel_research_recovery",
+                            "panel_draft",
+                            "panel_draft_recovery",
+                            "panel_validation_recovery",
+                        )
+                    }
+                ai["brand_checks"] = await self._result(run_id, "brand_checks")
+                documents = build_documents(
+                    run_id=run_id,
+                    project_id=str(run.project_id),
+                    definition_sha=run.definition_commit_sha,
+                    scope=scope,
+                    crawl=crawl,
+                    ai=ai,
+                    spending={
+                        "reservations_usd": budget.result if budget else {},
+                        "limit_usd": scope["max_cost_usd"],
+                        "note": "Reservations retained; not a final provider invoice.",
+                    },
+                    policy_version=policy_version,
+                )
+                artifacts = await self._save(
+                    run_id,
+                    "artifacts",
+                    {path: content.decode() for path, content in documents.items()},
+                )
+            documents = {path: content.encode() for path, content in artifacts.items()}
+            summary = None
+            if await self._policy_version(run_id) != LEGACY_AUDIT_POLICY["version"]:
+                evidence = json.loads(artifacts[audit_paths(run_id)["evidence.json"]])
+                crawl, ai = evidence["crawl"], evidence["ai_visibility"]
+                partial = crawl["status"] != "completed" or ai["status"] != "completed"
+                summary = (
+                    "Organic visibility audit is ready"
+                    + (" with partial evidence." if partial else ".")
+                    + f" Inspected {len(crawl.get('pages', []))} HTML pages; "
+                    + (
+                        f"scored {ai['completed']}/{ai['planned']} AI observations."
+                        if ai["planned"]
+                        else "AI visibility was not measured."
+                    )
+                )
+            await self.db.start_effect(conn, execution_key=key, operation="organic.audit")
+
+            async def save_intent(intent):
+                await self.db.save_publication_intent(conn, execution_key=key, intent=intent)
+
+            async def validate_active():
+                await self._active(run_id, conn=conn)
+
+            async with self.db.project_state_lock(conn, project.id):
+                revision = await publish_audit(
+                    storage=self.storage,
+                    repo_id=project.state_repo_id,
+                    branch=project.canonical_branch,
+                    run_id=run_id,
+                    documents=documents,
+                    intent=(existing.result or {}).get("publication") if existing else None,
+                    save_intent=save_intent,
+                    validate_active=validate_active,
+                )
+            await self.db.complete_effect(
+                conn,
+                execution_key=key,
+                result={
+                    "canonical_commit_sha": revision,
+                    "artifact_path": audit_paths(run_id)["AUDIT.md"],
+                    "documents_sha256": digest(artifacts),
+                    **({"summary": summary} if summary is not None else {}),
+                },
+            )
+
+    @activity.defn
+    async def organic_project(self, run_id: str) -> None:
+        key = self.key(run_id, "projection")
+        async with self.db.effect_lock(key, "organic.audit") as (conn, existing):
+            if existing and existing.status == "completed":
+                return
+            run = await self._active(run_id, conn=conn)
+            project = await self.db.get_project(run.project_id, conn=conn)
+            publication = await self._result(run_id, "publish")
+            if not publication or publication["artifact_path"] != audit_paths(run_id)["AUDIT.md"]:
+                raise ApplicationError(
+                    "Audit has no durable publication receipt.", non_retryable=True
+                )
+            await self.db.start_effect(conn, execution_key=key, operation="organic.audit")
+            ref = f"code.storage://{project.state_repo_id}@{publication['canonical_commit_sha']}/{publication['artifact_path']}"
+            await self.db.complete_organic_audit_projection(
+                conn,
+                execution_key=key,
+                run_id=run.id,
+                canonical_commit_sha=publication["canonical_commit_sha"],
+                artifact_path=publication["artifact_path"],
+                artifact_ref=ref,
+                summary=publication.get("summary"),
+            )
+
+    @activity.defn
+    async def organic_failure(self, run_id: str) -> None:
+        await self.organic_end_crawl(run_id)
+        await self.db.project_failure(
+            run_id=UUID(run_id),
+            error_message=(
+                "Organic audit could not finish. Check DataForSEO configuration "
+                "and the explicit audit spending limit. Paid requests with uncertain outcomes "
+                "were not blindly repeated; the website was not changed."
+            ),
+        )

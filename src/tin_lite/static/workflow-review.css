@@ -1,0 +1,36 @@
+/* Paper 128–134, expressed through the existing theme tokens. */
+.workflow-review { min-width: 0; }
+.workflow-review.is-reader { grid-column: 2; }
+.workflow-review:empty { display: none; }
+.workflow-review.is-reader:not(:empty) { margin-top: 48px; }
+.markdown-context-action.is-review-request { background: transparent; color: var(--ink); border: 1px solid var(--paper-border-strong); border-radius: 4px; font-weight: 400; }
+.markdown-context-action.is-review-request:hover { background: var(--paper-well); border-color: var(--ink-tertiary); }
+.markdown-context-action.is-review-request:active { background: var(--paper-well); }
+.markdown-reader-layout:has(.workflow-review:not(:empty)) .markdown-section-map { grid-column: 1; grid-row: 1 / 3; }
+.markdown-reader-layout:has(.workflow-review:not(:empty)) .markdown-document { grid-column: 2; }
+.workflow-review.is-decision { margin-top: 24px; }
+.review-composer { display: flex; flex-direction: column; gap: 16px; padding: 24px; border: 1px solid var(--paper-border); border-radius: 8px; background: var(--paper-card); }
+.review-composer > label { font-size: 17px; font-weight: 700; line-height: 22px; }
+.review-composer > p { margin: -10px 0 0; color: var(--ink-secondary); font-size: 13px; line-height: 18px; }
+.review-composer textarea { box-sizing: border-box; width: 100%; min-height: 116px; resize: vertical; padding: 14px 16px; border: 1px solid var(--paper-border-strong); border-radius: 4px; background: var(--paper-well); color: var(--ink); font: inherit; font-size: 15px; line-height: 24px; }
+.review-composer > footer { display: flex; justify-content: flex-end; padding-top: 4px; }
+.review-submit { border: 0; border-radius: 4px; padding: 9px 14px; color: var(--on-accent); background: var(--accent-deep); font: inherit; font-size: 13px; font-weight: 700; line-height: 18px; cursor: pointer; }
+.review-submit:disabled { opacity: .65; cursor: wait; }
+.review-composer .review-error { color: var(--danger); margin: 0; }
+.review-version-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; color: var(--ink-secondary); font-size: 13px; }
+.review-version-notice { padding: 16px 0; color: var(--ink-secondary); }
+.review-change-summary { white-space: pre-wrap; margin: 0 0 20px; color: var(--ink-secondary); font-size: 14px; line-height: 22px; }
+.markdown-reader-layout.is-review-comparison { display: block; width: min(860px, 100%); transform: none; }
+.review-comparison { border: 1px solid var(--paper-border); border-radius: 8px; overflow: hidden; }
+.review-comparison > header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--paper-border); font-size: 13px; }
+.review-comparison .compare-line.is-current .compare-line-text { text-decoration: none; }
+.review-comparison .compare-line-text { overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .workflow-review.is-reader, .markdown-reader-layout:has(.workflow-review:not(:empty)) .markdown-document { grid-column: auto; }
+}
+@media (max-width: 540px) {
+  .workflow-review.is-reader { margin-left: 20px; margin-right: 20px; }
+  .review-composer { padding: 20px; }
+  .review-composer > footer, .review-submit { width: 100%; }
+  .review-version-row { gap: 12px; }
+}

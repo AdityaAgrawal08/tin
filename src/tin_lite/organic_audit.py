@@ -1,0 +1,754 @@
+"""Versioned, deterministic contracts for the read-only organic audit.
+
+Provider flags are observations, not an SEO score or permission to edit a site.
+This module has no network, database, or Temporal dependencies.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import ipaddress
+import json
+import re
+from typing import Any
+from urllib.parse import urlsplit
+from uuid import UUID
+
+AUDIT_KEY = "organic.audit"
+LEGACY_AUDIT_POLICY = {
+    "version": "organic-audit-v1",
+    "max_pages": 100,
+    "max_poll_attempts": 120,
+    "poll_seconds": 30,
+    "max_questions": 12,
+    "repetitions": 2,
+    "brand_checks": 2,
+    "model": "gpt-5.6-luna",
+    "provider": "openai",
+    "search_tool": "web_search",
+    "max_tool_calls": 3,
+    "max_output_tokens": 6000,
+    # Conservative reservations, not a provider price quote. Uncertain requests
+    # retain their entire reservation. Deployment must explicitly enable spending.
+    "crawl_reservation_usd": "0.05",
+    "search_reservation_usd": "0.20",
+    "text_reservation_usd": "0.03",
+    "pricing_checked_on": "2026-09-07",
+}
+V2_AUDIT_POLICY = {**LEGACY_AUDIT_POLICY, "version": "organic-audit-v2"}
+V3_AUDIT_POLICY = {
+    **V2_AUDIT_POLICY,
+    "version": "organic-audit-v3",
+    "max_research_attempts": 2,
+    "max_panel_attempts": 2,
+}
+V4_AUDIT_POLICY = {**V3_AUDIT_POLICY, "version": "organic-audit-v4"}
+V5_AUDIT_POLICY = {
+    **V4_AUDIT_POLICY,
+    "version": "organic-audit-v5",
+    "verified_www_redirects": True,
+    "max_response_bytes": 64_000,
+    "max_observation_bytes": 80_000,
+    "max_evidence_bytes": 3_000_000,
+    "runtime_budget": "observed_supplier_exposure_when_metered",
+}
+V6_AUDIT_POLICY = {
+    **V5_AUDIT_POLICY,
+    "version": "organic-audit-v6",
+    "standalone_question_review": True,
+}
+V7_AUDIT_POLICY = {
+    **V6_AUDIT_POLICY,
+    "version": "organic-audit-v7",
+    "blind_question_interpretation": True,
+    "question_interpretation_concurrency": 4,
+}
+AUDIT_POLICY = {**V7_AUDIT_POLICY, "version": "organic-audit-v8", "answer_timeout_seconds": 180}
+
+
+def audit_policy(version: str = AUDIT_POLICY["version"]) -> dict:
+    for policy in (
+        LEGACY_AUDIT_POLICY,
+        V2_AUDIT_POLICY,
+        V3_AUDIT_POLICY,
+        V4_AUDIT_POLICY,
+        V5_AUDIT_POLICY,
+        V6_AUDIT_POLICY,
+        V7_AUDIT_POLICY,
+        AUDIT_POLICY,
+    ):
+        if version == policy["version"]:
+            return policy
+    raise ValueError("Unsupported organic audit policy.")
+
+
+def grounded_preparation(policy_version: str) -> bool:
+    return audit_policy(policy_version) in (
+        V3_AUDIT_POLICY,
+        V4_AUDIT_POLICY,
+        V5_AUDIT_POLICY,
+        V6_AUDIT_POLICY,
+        V7_AUDIT_POLICY,
+        AUDIT_POLICY,
+    )
+
+
+# Only Tin-owned reason codes cross into evidence or the readable report. Never
+# copy provider exceptions, response bodies, or model-generated error text here.
+AUDIT_GAP_REASONS = {
+    "response_incomplete": "The provider did not return a completed answer.",
+    "response_refused": "The provider declined to answer.",
+    "response_empty": "The answer was empty.",
+    "response_too_large": "The answer exceeded the saved-evidence size limit.",
+    "search_incomplete": "The answer lacked a completed, bounded web search.",
+    "search_not_called": "The provider returned an answer without using the required web search.",
+    "search_not_completed": "No web-search call completed successfully.",
+    "search_limit_exceeded": "Completed web searches exceeded the pinned request limit.",
+    "research_sources_missing": (
+        "Product research returned no usable evidence from the requested website."
+    ),
+    "panel_identity_invalid": (
+        "The proposed questions described a different or unsupported product."
+    ),
+    "panel_source_unobserved": (
+        "A proposed question cited a page absent from the saved public research."
+    ),
+    "panel_questions_invalid": (
+        "The proposed buyer questions did not meet the neutral question contract."
+    ),
+    "panel_review_rejected": (
+        "The proposed buyer questions were not supported by the saved product research."
+    ),
+    "evidence_too_large": "The answer and its sources exceeded the saved-evidence size limit.",
+    "response_invalid": "The response did not match the expected structure.",
+    "judgment_invalid": "The grading response did not match the required structure.",
+    "mention_quote_invalid": "The mention grade lacked an exact quote naming the target.",
+    "shortlist_quote_invalid": "The recommendation grade lacked an exact quote naming the target.",
+    "first_choice_quote_invalid": "The first-choice grade lacked an exact quote naming the target.",
+    "judgment_inconsistent": "The mention and recommendation grades contradicted each other.",
+    "invalid_answer_judgment": "The AI grade could not be verified against the saved answer.",
+    "provider_result_unavailable": "The provider request outcome could not be confirmed.",
+    "unconfirmed_previous_request": "An earlier request was not confirmed and was not repeated.",
+    "spending_limit": "The spending limit prevented this request.",
+    "model_not_configured": "The model provider was not configured.",
+    "classification_exceeded_evidence_budget": (
+        "The scored result exceeded the evidence size limit."
+    ),
+    "public_identity_or_panel_not_validated": (
+        "The website identity or buyer panel was not validated."
+    ),
+    "not_recorded": "No scored observation was recorded.",
+}
+
+MARKETS = {"US": 2840, "GB": 2826, "CA": 2124, "AU": 2036}
+ARTIFACT_LIMITS = {"AUDIT.md": 150_000, "findings.json": 500_000, "evidence.json": 3_000_000}
+
+
+def canonical_json(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+
+
+def digest(value: Any) -> str:
+    return hashlib.sha256(canonical_json(value)).hexdigest()
+
+
+def audit_paths(run_id: str) -> dict[str, str]:
+    run_id = str(UUID(run_id))
+    return {name: f"reports/organic-audit/{run_id}/{name}" for name in ARTIFACT_LIMITS}
+
+
+def public_site(value: str) -> tuple[str, str]:
+    """Require an explicit HTTPS origin, never a guessed or credential-bearing URL."""
+    if not isinstance(value, str) or len(value) > 500 or any(ord(c) < 33 for c in value):
+        raise ValueError("Enter a public HTTPS website origin.")
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port not in {None, 443}
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("Enter a public HTTPS origin without a path, query, or credentials.")
+    host = parsed.hostname.encode("idna").decode().lower()
+    if (
+        len(host) > 253
+        or host.endswith(".")
+        or "." not in host
+        or host.endswith((".localhost", ".local", ".internal", ".test", ".invalid"))
+        or any(
+            not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", p) for p in host.split(".")
+        )
+    ):
+        raise ValueError("The audit requires a public DNS hostname.")
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return f"https://{host}/", host
+    raise ValueError("Use the public site's DNS hostname, not an IP address.")
+
+
+def in_scope_url(value: Any, host: str, *, aliases: tuple[str, ...] = ()) -> bool:
+    if not isinstance(value, str) or len(value) > 2000:
+        return False
+    try:
+        url = urlsplit(value)
+        return (
+            url.scheme in {"https", "http"}
+            and url.hostname in (host, *aliases)
+            and url.username is None
+            and url.password is None
+            and url.port in {None, 80, 443}
+            and not url.fragment
+        )
+    except ValueError:
+        return False
+
+
+def audit_hosts(scope: dict) -> tuple[str, ...]:
+    """Allow an exact www pair only from a validated, publication-bound redirect receipt."""
+    host = scope["host"]
+    if not audit_policy(scope.get("policy_version", "organic-audit-v1")).get(
+        "verified_www_redirects"
+    ):
+        return (host,)
+    peer = host[4:] if host.startswith("www.") else f"www.{host}"
+    redirects = (scope.get("site_identity") or {}).get("redirects", [])
+    if not isinstance(redirects, list) or len(redirects) > 5:
+        raise ValueError("Invalid audit redirect evidence.")
+    current = scope["url"]
+    observed = {host}
+    for redirect in redirects:
+        if redirect["from"] != current or redirect["status_code"] not in {301, 302, 303, 307, 308}:
+            raise ValueError("Invalid audit redirect evidence.")
+        target = redirect["to"]
+        parsed = urlsplit(target)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname not in {host, peer}
+            or parsed.port not in {None, 443}
+            or parsed.username
+            or parsed.password
+            or parsed.fragment
+            or len(target) > 2000
+            or any(ord(c) < 33 for c in target)
+        ):
+            raise ValueError("Audit redirect left its verified site scope.")
+        observed.add(parsed.hostname)
+        current = target
+    return (host, *sorted(observed - {host}))
+
+
+# Flag, check ID, status, severity, observation, remedy. Deliberate exclusions
+# are review items; absent fields never become either a pass or a failure.
+CHECKS = (
+    (
+        "is_redirect",
+        "http.redirect",
+        "review",
+        "low",
+        "Page redirects",
+        "Confirm the destination is intentional; do not remove a valid redirect.",
+    ),
+    (
+        "no_title",
+        "metadata.title_missing",
+        "fail",
+        "medium",
+        "HTML title is missing",
+        "Add an accurate, distinct title describing the page.",
+    ),
+    (
+        "no_description",
+        "metadata.description_missing",
+        "review",
+        "low",
+        "Meta description is missing",
+        "Consider a useful summary; this is not a ranking penalty.",
+    ),
+    (
+        "duplicate_title",
+        "metadata.title_duplicate",
+        "review",
+        "medium",
+        "Duplicate title observed",
+        "Check the affected pages' intent before changing a shared title template.",
+    ),
+    (
+        "duplicate_description",
+        "metadata.description_duplicate",
+        "review",
+        "low",
+        "Duplicate description observed",
+        "Distinguish pages where their purposes differ.",
+    ),
+    (
+        "is_orphan_page",
+        "discovery.possible_orphan",
+        "review",
+        "medium",
+        "Provider flagged a possible orphan page",
+        "Verify incoming internal links; a bounded crawl cannot establish a whole-site orphan.",
+    ),
+    (
+        "canonical_to_broken",
+        "canonical.broken",
+        "fail",
+        "high",
+        "Canonical target is broken",
+        "Verify the intended canonical target and make it reachable or correct the canonical.",
+    ),
+    (
+        "canonical_to_redirect",
+        "canonical.redirect",
+        "review",
+        "medium",
+        "Canonical target redirects",
+        "Check whether the final preferred URL should be canonical.",
+    ),
+    (
+        "broken_links",
+        "links.broken",
+        "review",
+        "high",
+        "Page contains broken links",
+        "Inspect the broken destinations and repair or remove links whose targets should exist.",
+    ),
+    (
+        "redirect_chain",
+        "http.redirect_chain",
+        "review",
+        "medium",
+        "Redirect chain observed",
+        "Verify the intended destination, then simplify avoidable intermediate redirects.",
+    ),
+    (
+        "is_4xx_code",
+        "http.client_error",
+        "fail",
+        "high",
+        "HTTP 4xx observed",
+        "Check access rules and intended page availability before restoring or redirecting.",
+    ),
+    (
+        "is_5xx_code",
+        "http.server_error",
+        "fail",
+        "high",
+        "HTTP 5xx observed",
+        "Investigate the server error and verify the public URL responds successfully.",
+    ),
+)
+
+
+def normalize_pages(items: list[dict], host: str, *, aliases: tuple[str, ...] = ()) -> list[dict]:
+    if len(items) > AUDIT_POLICY["max_pages"]:
+        raise ValueError("Provider page collection exceeded its pinned limit.")
+    pages = []
+    seen: set[str] = set()
+    for item in items:
+        url = item.get("url")
+        if (
+            not in_scope_url(url, host, aliases=aliases)
+            or url in seen
+            or item.get("resource_type") != "html"
+        ):
+            continue
+        seen.add(url)
+        meta = item.get("meta") or {}
+        checks = dict(item.get("checks") or {})
+        for flag in ("duplicate_title", "duplicate_description", "broken_links"):
+            if type(item.get(flag)) is bool:
+                checks[flag] = item[flag]
+        pages.append(
+            {
+                "url": url,
+                "status_code": item.get("status_code"),
+                "title": str(meta.get("title") or "")[:200],
+                "checks": {
+                    flag: checks[flag] for flag, *_ in CHECKS if type(checks.get(flag)) is bool
+                },
+            }
+        )
+    pages = sorted(pages, key=lambda page: page["url"])
+    if len(canonical_json(pages)) > 240_000:
+        raise ValueError("Normalized crawl exceeded its evidence budget.")
+    return pages
+
+
+def technical_findings(pages: list[dict], host: str) -> tuple[list[dict], list[dict]]:
+    findings, coverage = [], []
+    for flag, check_id, status, severity, observation, remedy in CHECKS:
+        observed = [p for p in pages if flag in p["checks"]]
+        affected = [p["url"] for p in observed if p["checks"][flag]]
+        coverage.append(
+            {
+                "check_id": check_id,
+                "observed_pages": len(observed),
+                "status": "observed" if observed else "unknown",
+            }
+        )
+        if not affected:
+            continue
+        findings.append(
+            {
+                "id": f"oa_{digest([host, check_id])[:20]}",
+                "check_id": check_id,
+                "check_version": 1,
+                "category": "technical",
+                "status": status,
+                "severity": severity,
+                "confidence": "observed",
+                "evidence_kind": "provider_crawl",
+                "urls": affected[:10],
+                "urls_capped": len(affected) > 10,
+                "affected_url_evidence": {"collection": "crawl.pages", "flag": flag},
+                "affected_count": len(affected),
+                "observation": observation,
+                "expected_behavior": remedy,
+                "suggested_remedy": remedy,
+                "ownership": "site_owner",
+                "effort": "requires_inspection",
+                "dependencies": [],
+                "verification": {
+                    "kind": "recrawl_and_inspect",
+                    "check_id": check_id,
+                },
+                "next_action": "technical_fix",
+                "evidence_refs": ["crawl.pages"],
+            }
+        )
+    order = {"high": 0, "medium": 1, "low": 2}
+    return sorted(findings, key=lambda item: (order[item["severity"]], item["id"])), coverage
+
+
+def content_review_findings(
+    ai: dict,
+    host: str,
+    *,
+    policy_version: str = AUDIT_POLICY["version"],
+    aliases: tuple[str, ...] = (),
+) -> list[dict]:
+    """Measured absence can prioritize investigation, never prove a missing page."""
+    if not ai.get("panel") or (
+        audit_policy(policy_version) == LEGACY_AUDIT_POLICY and ai.get("status") != "completed"
+    ):
+        return []
+    groups: dict[str, list[dict]] = {}
+    for index, question in enumerate(ai["panel"]["questions"]):
+        answers = [row for row in ai["observations"] if row.get("question_index") == index]
+        if len(answers) != 2 or any(row.get("status") != "completed" for row in answers):
+            continue
+        if any(row["classification"]["owned_domain_cited"] for row in answers):
+            continue
+        groups.setdefault(question["job"], []).append(
+            {
+                "question": question["question"],
+                "source_url": question["source_url"],
+                "observation_indexes": [row["index"] for row in answers],
+            }
+        )
+    findings = []
+    for job, questions in groups.items():
+        urls = sorted(
+            {
+                q["source_url"]
+                for q in questions
+                if in_scope_url(q["source_url"], host, aliases=aliases)
+            }
+        )
+        check = "content.buyer_answer_coverage"
+        findings.append(
+            {
+                "id": f"oa_{digest([host, check, job])[:20]}",
+                "check_id": check,
+                "check_version": 1,
+                "category": "content",
+                "status": "review",
+                "severity": "medium",
+                "confidence": "hypothesis",
+                "evidence_kind": "sampled_ai_answers",
+                "urls": urls,
+                "affected_count": len(questions),
+                "observation": f"Review buyer-answer coverage: {job}",
+                "expected_behavior": (
+                    "Buyers can find clear, accurate answers on the public website."
+                ),
+                "suggested_remedy": (
+                    "The website was not cited in either sampled answer to these questions. "
+                    "Inspect existing public answers before deciding whether to improve, "
+                    "add, or link content. This is not proof of missing content or a promise "
+                    "that a new page will gain citations."
+                ),
+                "ownership": "content_owner",
+                "effort": "requires_inspection",
+                "dependencies": [],
+                "verification": {"kind": "inspect_existing_buyer_answers", "questions": questions},
+                "next_action": "content_plan",
+                "evidence_refs": [
+                    f"ai_visibility.observations.{index}"
+                    for q in questions
+                    for index in q["observation_indexes"]
+                ],
+                **(
+                    {"audit_coverage": "partial", "requires_complete_question_pair": True}
+                    if ai.get("status") != "completed"
+                    else {}
+                ),
+            }
+        )
+    return findings
+
+
+def ai_report_details(ai: dict) -> list[str]:
+    """A bounded readable view of each frozen question, including honest gaps."""
+    panel = ai.get("panel")
+    if not panel:
+        reason = (ai.get("preparation") or {}).get("reason") or (
+            ai.get("public_research") or {}
+        ).get("reason")
+        return [
+            "### Why AI visibility was not measured",
+            "",
+            AUDIT_GAP_REASONS.get(
+                reason, AUDIT_GAP_REASONS["public_identity_or_panel_not_validated"]
+            ),
+            "No visibility score or content-coverage recommendation was inferred.",
+            "",
+        ]
+    lines = [
+        "### Buyer-question results",
+        "",
+        "Each row is one frozen question. Counts include only scored answers. "
+        "Unknown answers are not counted as negatives; "
+        "missing answers are not automatically replaced.",
+        "",
+        "| Question | Scored | Mentioned | Website cited | Shortlisted | Preferred first |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    observations = {row["index"]: row for row in ai.get("observations", [])}
+    limited_search = sum(
+        bool(
+            {"failed", "searching", "in_progress"}.intersection(
+                row.get("answer", {})
+                .get("value", {})
+                .get("diagnostics", {})
+                .get("search_statuses", [])
+            )
+        )
+        for row in observations.values()
+    )
+    gaps = []
+    for index, question in enumerate(panel["questions"]):
+        rows = [observations.get(index * 2 + repeat, {}) for repeat in range(2)]
+        scored = [row for row in rows if row.get("status") == "completed"]
+        label = re.sub(r"([\\`*_{}\[\]()<>#+.!|~-])", r"\\\1", question["question"])
+        label = " ".join(label.split())
+        counts = [
+            str(sum(row["classification"][key] for row in scored)) if scored else "Unknown"
+            for key in ("mentioned", "owned_domain_cited", "shortlisted", "selected_first")
+        ]
+        lines.append(f"| Q{index + 1}. {label} | {len(scored)}/2 | " + " | ".join(counts) + " |")
+        for repeat, row in enumerate(rows, 1):
+            if row.get("status") == "completed":
+                continue
+            reason = row.get("reason") or row.get("answer", {}).get("reason")
+            explanation = AUDIT_GAP_REASONS.get(reason, AUDIT_GAP_REASONS["not_recorded"])
+            stage = "Grading" if row.get("failure_stage") == "grading" else "Observation"
+            gaps.append(f"- Q{index + 1}, answer {repeat} — {stage}: {explanation}")
+    lines.extend(
+        ["", "Full saved answers and source links are in the adjacent `evidence.json`.", ""]
+    )
+    if limited_search:
+        lines.extend(
+            [
+                f"{limited_search} answers had completed web research and an extra search "
+                "attempt that did not complete. "
+                "Attempt statuses remain in the evidence; these are not missing answers.",
+                "",
+            ]
+        )
+    if gaps:
+        lines.extend(["### Missing evidence", "", *gaps, ""])
+    return lines
+
+
+def build_documents(
+    *,
+    run_id: str,
+    project_id: str,
+    definition_sha: str,
+    scope: dict,
+    crawl: dict,
+    ai: dict,
+    spending: dict,
+    policy_version: str = AUDIT_POLICY["version"],
+) -> dict[str, bytes]:
+    policy = audit_policy(policy_version)
+    modern = policy != LEGACY_AUDIT_POLICY
+    hosts = audit_hosts(scope)
+    pages = crawl.get("pages", [])
+    findings, coverage = technical_findings(pages, scope["host"])
+    findings.extend(
+        content_review_findings(ai, scope["host"], policy_version=policy_version, aliases=hosts)
+    )
+    evidence = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "project_id": project_id,
+        "definition_commit_sha": definition_sha,
+        "policy": policy,
+        "scope": scope,
+        "crawl": crawl,
+        "ai_visibility": ai,
+        "spending": spending,
+    }
+    inventory = {
+        "schema_version": 1,
+        "run_id": run_id,
+        "target_host": scope["host"],
+        "evidence_sha256": digest(evidence),
+        "findings": findings,
+        "check_coverage": coverage,
+        "downstream_authority": "recommendations_only",
+    }
+    complete = crawl.get("status") == "completed" and ai.get("status") == "completed"
+    lines = [
+        "# Organic visibility audit",
+        "",
+        f"Website: {scope['url']}",
+        f"Market: {scope['market']} · English · Observed: {scope['started_at']}",
+        "",
+        "## In plain English",
+        "",
+        "This is a read-only, sampled audit. Nothing on your website changed.",
+        f"Result: {'completed within the stated scope' if complete else 'partial evidence'}. "
+        f"Inspected {len(pages)} HTML pages (limit {AUDIT_POLICY['max_pages']}).",
+        "",
+        "## What to tackle first",
+        "",
+    ]
+    completion = scope.get("completion")
+    if completion:
+        lines[10:10] = [
+            f"Completion: retained the original crawl and {completion['retained_observations']} "
+            "scored answers; explicitly retried the one missing answer. "
+            f"The original partial audit `{completion['source_run_id']}` remains unchanged. "
+            f"Completion requested: {completion['requested_at']}. "
+            "This is a completed evidence set, not a claim that every original request succeeded.",
+            "",
+        ]
+    if not findings and (pages or not policy.get("verified_www_redirects")):
+        lines.append(
+            "No supported technical findings were observed in the available pages. "
+            "This is not a clean bill of health for the whole website."
+        )
+        if modern:
+            lines.append("")
+    if policy.get("verified_www_redirects"):
+        if not pages:
+            lines.extend(
+                ["Technical SEO was not measured: no in-scope HTML pages were retained.", ""]
+            )
+        if len(hosts) > 1:
+            lines.extend(
+                [f"The verified website redirect also includes `{hosts[1]}` in this audit.", ""]
+            )
+    for item in findings:
+        lines.extend(
+            [
+                f"### {item['observation']} ({item['severity']}; {item['status']})",
+                "",
+                f"{item['affected_count']} "
+                f"{'buyer questions' if item['category'] == 'content' else 'inspected URLs'}. "
+                f"{item['suggested_remedy']}",
+                "",
+                f"Finding ID: `{item['id']}`. Examples and verification: `findings.json`; "
+                "full affected-page evidence: `evidence.json`.",
+                "",
+            ]
+        )
+    if policy.get("verified_www_redirects"):
+        lines.extend(
+            [
+                "## Technical SEO",
+                "",
+                f"{len(pages)} HTML pages inspected across {len(CHECKS)} supported checks.",
+                "",
+            ]
+        )
+        if pages:
+            lines.extend(["| Check | Pages checked | Pages flagged |", "| --- | ---: | ---: |"])
+            for flag, check_id, _, _, label, _ in CHECKS:
+                checked = next(
+                    row["observed_pages"] for row in coverage if row["check_id"] == check_id
+                )
+                flagged = sum(page["checks"].get(flag) is True for page in pages)
+                lines.append(f"| {label} | {checked} | {flagged if checked else 'Not measured'} |")
+            lines.extend(
+                [
+                    "",
+                    "Flags are review candidates, not an SEO score; "
+                    "unobserved checks are not passes.",
+                    "",
+                ]
+            )
+        collection = crawl.get("collection")
+        if collection and collection["excluded_html_pages"]:
+            lines.extend(
+                [
+                    f"The provider returned {collection['provider_html_pages']} HTML pages; "
+                    f"{collection['excluded_html_pages']} were excluded as outside the verified "
+                    "scope, duplicates, or unsupported records.",
+                    "",
+                ]
+            )
+    lines.extend(
+        [
+            "## AI visibility",
+            "",
+            ai.get("summary", "Not measured."),
+            "",
+            *(ai_report_details(ai) if modern else []),
+            "Branded fact-check answers are separate observations in the evidence. "
+            "They do not count toward the unbranded baseline or certify factual accuracy.",
+            "",
+            "## Evidence and limits",
+            "",
+            f"Crawl: {crawl.get('status', 'unknown')}. {crawl.get('note', '')}",
+            "",
+            "A provider check is an observation, not proof of indexing or ranking impact. "
+            "Unobserved checks are unknown, not passes. "
+            "Lab diagnostics are not field Core Web Vitals.",
+            "",
+            "This version does not measure field performance, private analytics, Search Console "
+            "data, backlinks, or other AI engines. It does not claim a whole-site certificate.",
+            "",
+            "## For the next workflow",
+            "",
+            "Use this run's immutable artifact revision, the findings digest, "
+            "and selected finding IDs. "
+            "Recheck the affected URLs and repository ownership before proposing a fix. "
+            "This report grants no authority to edit, publish, or contact anyone.",
+            "",
+            f"Findings SHA-256: `{digest(inventory)}`",
+            "",
+            "The adjacent `findings.json` and `evidence.json` contain bounded, "
+            "machine-readable evidence.",
+        ]
+    )
+    paths = audit_paths(run_id)
+    documents = {
+        paths["AUDIT.md"]: ("\n".join(lines) + "\n").encode(),
+        paths["findings.json"]: canonical_json(inventory),
+        paths["evidence.json"]: canonical_json(evidence),
+    }
+    for name, limit in ARTIFACT_LIMITS.items():
+        if name == "evidence.json":
+            limit = policy.get("max_evidence_bytes", 900_000)
+        if not 0 < len(documents[paths[name]]) <= limit:
+            raise ValueError(f"Audit {name} exceeded its bounded artifact contract.")
+    return documents

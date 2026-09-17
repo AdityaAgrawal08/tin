@@ -1,0 +1,44 @@
+graph TD
+  %% tin:composition
+  subgraph workflow["Workflow"]
+    direction LR
+    %% tin:group lane
+    create["Create session + inbox alias<br/>Fresh identity for this run"]:::step
+    wait["Wait for verification email<br/>30-minute timeout becomes a finding"]:::wait
+    magic["Open magic link<br/>In the same browser session"]:::step
+  end
+  subgraph agent["Sandbox agent"]
+    direction LR
+    %% tin:group lane
+    walk["Walk the signup<br/>Land · fill form · submit"]:::step
+    activation["Continue to activation<br/>Judge experience · fix a break · re-walk"]:::step
+    receipt["Journey receipt<br/>Replay · screenshots · verdict → project wiki"]:::receipt
+  end
+  subgraph services
+    direction LR
+    %% tin:group layout
+    subgraph browser_lane["Kernel browser"]
+      direction TD
+      %% tin:group lane
+      browser["Headed browser session<br/>Replay recorded · no prior cookies or logins"]:::surface
+    end
+    subgraph mail_lane["Mailbox"]
+      direction TD
+      %% tin:group lane
+      mailbox["Inbound email webhook<br/>Verification message becomes a signal"]:::step
+    end
+    subgraph founder_lane["Founder"]
+      direction TD
+      %% tin:group lane
+      founder["Founder live view<br/>Watch the walk · take over if needed"]:::ghost
+    end
+  end
+  create --> walk
+  create --> browser
+  walk -->|CDP| browser
+  browser -.->|email arrives| mailbox
+  mailbox -.->|verification signal| wait
+  wait --> magic
+  magic --> activation
+  activation --> receipt
+  browser -.->|live view| founder

@@ -1,0 +1,88 @@
+# Model service and Codex procedures
+
+This documents the model-service foundation contract. Its
+“not included” and “deferred” statements below describe that slice, not current rollout.
+Today native model calls and protected Codex API execution retain distinct usage contracts;
+hosted defaults select the API runner for supported new Codex work, and historical OAuth
+runs retain their pins. Private code/model/connection/schedule slices have since shipped
+within the operator-enabled pilot. See [feature status](feature-status.md),
+[billing coverage](workflow-billing-coverage.md), and [Codex API execution](codex-api-pilot.md).
+
+## Foundation boundary at acceptance
+
+Tin has two different ways to do model-backed work. The shared model service calls OpenAI,
+Anthropic, Gemini, or OpenRouter using credentials held on the Tin server. A Codex procedure
+runs the Codex coding agent in a sandbox using the existing pooled ChatGPT login mechanism.
+Adding a provider to the first does not change how the second authenticates or executes.
+
+Hosted users do not need their own model keys. Self-host operators configure their own keys
+on their server. No version picker, model picker, extra approval step, or report-only
+restriction on private workflows is introduced here.
+
+## Implemented
+
+- Explicit `openrouter` adapter, using the official OpenAI SDK's compatible Chat Completions
+  client, with optional server-only `OPENROUTER_API_KEY`. Other credential names are unchanged.
+  Its endpoint is fixed; prompts cannot choose a URL, supply credentials, or override routing.
+- Text, strict JSON Schema, reasoning effort, response identifiers and normalized token usage
+  use the same service contract. Required parameters must be supported by the selected endpoint.
+  No automatic provider fallback, model substitution or SDK retry is requested. Gemini's SDK
+  retries are now explicitly disabled too.
+- A credential only configures an adapter. It does not add a route or change a workflow's
+  selected model. All current model routes and immutable workflow definitions are unchanged.
+- Runtime service calls require a scope set by the trusted activity: run, stable step and
+  existing database connection. The recorder resolves project/workflow/revision from Postgres;
+  this is not a client-supplied authorization token or a new public model API.
+- One `native_model_usage_v1` effect receipt per run/step records intent before dispatch.
+  A completed observation contains provider/model, response identifier and reported token
+  counts, including cache reads and cache writes separately. Invalid JSON or empty output still
+  retains the provider's usage. No prompts, output, hidden reasoning or credentials go into
+  these accounting receipts or Temporal history.
+- A crash, timeout, cancellation or failure to save an observation leaves an unconfirmed
+  receipt with unknown usage, not zero. Retrying that step does not make another paid call.
+  The owning workflow still stores/replays its output in its existing receipt; if that output
+  is lost, the workflow must report/reconcile the uncertainty, not repurchase automatically.
+- Receipt locks reuse the owning activity's database connection, so a busy worker cannot
+  deadlock by holding every connection while requesting another for accounting.
+
+Anthropic's shared input total includes uncached input, cache writes and cache reads. Its
+cached-input field now means cache reads alone. Optional usage fields stay null when unknown;
+missing values are not substituted with zero. These are usage observations, not invoices or
+a new billing ledger. They do not contain provider pricing, retail prices or a spend budget.
+Existing workflow-specific spending ceilings and retry policies remain in force.
+
+## Coverage and limits of the September 10 slice
+
+All four current shared-router callers are connected: keyword planning, content planning,
+native character design (draft, bounded repairs, refinement), and the retained native
+site-health executor for older histories. There is no schema migration, new Temporal
+implementation, change to the dashboard/MCP start contract, or sandbox image rebuild.
+
+Older direct Responses callers such as Luna and the visibility/organic audit path are **not**
+included in these shared-router receipts. Their existing workflow-specific receipts remain.
+Nor are Codex's OAuth calls, E2B compute, DataForSEO or Studio media spending included.
+Absence of a receipt must never be presented as a free run or complete platform-wide usage.
+No public usage dashboard or billing endpoint is added by this slice.
+
+Private package activation remains deferred. Before a private Codex pilot, reusable pooled
+OAuth credentials still need isolation from author-controlled commands, and usage/access
+policy must be bound to package admission and runtime grants. This implementation is not
+that isolation proof. Private workflows may still legitimately prepare GitHub PRs through
+the existing authorized integration gateway; there is no new prohibition on that outcome.
+
+## Verification
+
+Tests use real SDK request serialization with in-memory HTTP responses and real SQL in
+disposable local Postgres schemas. They cover provider mapping, credential placement, disabled
+retries, rejected output, lost responses, cancellation, duplicate dispatch, accounting-write
+failure, full-pool nested locks, multiple character steps and inactive/unbound scopes.
+No paid provider pilot, production workflow mutation or private activation is claimed.
+An OpenRouter route must be explicitly registered and tested before a workflow uses it;
+merely deploying this adapter does not start sending requests to OpenRouter.
+
+## Provider references
+
+The adapter follows OpenRouter's [structured output contract](https://openrouter.ai/docs/guides/features/structured-outputs)
+and [usage accounting fields](https://openrouter.ai/docs/cookbook/administration/usage-accounting).
+Anthropic normalization follows its [prompt caching usage definition](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
+The direct OpenAI adapter remains on Responses, not Chat Completions or Codex authentication.

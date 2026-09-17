@@ -1,0 +1,47 @@
+graph TD
+  %% tin:composition
+  subgraph entry
+    direction LR
+    %% tin:group layout
+    founder["Founder<br/>chat · board · watch"]:::step
+    app["Tin Lite app<br/>thinklikeanagent UI"]:::surface
+  end
+  subgraph services
+    direction LR
+    %% tin:group layout
+    subgraph switchboard["Switchboard · always-on trusted process"]
+      direction LR
+      %% tin:group frame
+      api["API / control plane<br/>registry · auth · webhooks"]:::step
+      worker["Temporal worker<br/>dispatches activities"]:::step
+      broker["Codex broker<br/>account pool · egress proxy"]:::step
+    end
+    temporal["Temporal Cloud<br/>Histories, timers, signals, and schedules. Runs none of our code."]:::surface
+  end
+  subgraph compute["On demand"]
+    direction LR
+    %% tin:group lane
+    sandbox["E2B sandbox<br/>On-demand computer for agent work. Durable state stays elsewhere."]:::surface
+    browser["Kernel browser<br/>Ephemeral session · founder live view"]:::surface
+    models["Model APIs<br/>Luna routes · captured model calls"]:::surface
+    providers["Providers<br/>Stripe · Google · PostHog · LinkedIn · Resend"]:::surface
+  end
+  subgraph durable["Durable state"]
+    direction LR
+    %% tin:group lane
+    code[("code.storage / GitHub<br/>Code, project state, wiki, and session files")]:::store
+    postgres[("Postgres<br/>Projects · runs · receipts · encrypted tokens")]:::store
+    archive[("GCS archive<br/>Pruned history · backups · exports")]:::store
+    custody["Login custody<br/>Captured session → vault → server-side APIs"]:::ghost
+  end
+  founder --> app
+  app --> api
+  worker -->|long-poll gRPC| temporal
+  api -->|create / stop / archive| sandbox
+  broker -.->|auth + proxied OpenAI| sandbox
+  sandbox -->|CDP| browser
+  worker -->|prompts| models
+  worker -->|provider calls| providers
+  providers -.->|webhooks| api
+  sandbox -->|clone / push| code
+  api -->|reads / writes / receipts| postgres

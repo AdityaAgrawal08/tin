@@ -1,0 +1,18 @@
+graph TD
+  %% tin:composition
+  broker["Account broker<br/>Probe · rotate · device login"]:::step
+  subgraph states
+    direction LR
+    %% tin:group layout
+    assemble["Assemble<br/>Clone + state + auth"]:::step
+    running["Running<br/>App-server turn · commit rollout delta"]:::receipt
+    paused["Paused<br/>Checkpoint retained · compute stopped"]:::wait
+    killed["Killed<br/>State layer holds continuity"]:::ghost
+  end
+  broker -.->|account switch / resume| running
+  assemble -->|first turn| running
+  running -->|auto-pause| paused
+  paused -->|retention kill| killed
+  running -->|turn / commit / idle| running
+  paused -.->|founder message · warm resume| running
+  killed -.->|reassemble + JSONL replay| assemble

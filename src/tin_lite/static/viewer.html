@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <script>
+      (() => {
+        let preference = "system";
+        try {
+          const stored = window.localStorage.getItem("tin-lite:theme");
+          if (["system", "light", "dark"].includes(stored)) preference = stored;
+        } catch (_error) {}
+        const theme = preference === "system"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : preference;
+        document.documentElement.dataset.themePreference = preference;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="color-scheme"]').content = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#141210" : "#f7f5ef";
+      })();
+    </script>
+    <title>Markdown · Tin</title>
+    <link rel="icon" href="/assets/tin-favicon.svg?v={{ASSET_VERSION}}" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/app.css?v={{ASSET_VERSION}}" />
+    <!--PRIVATE_FONTS_STYLESHEET-->
+    <script
+      defer
+      crossorigin="anonymous"
+      src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/ui@1/dist/ui.browser.js"
+    ></script>
+    <script
+      defer
+      crossorigin="anonymous"
+      data-clerk-publishable-key="{{CLERK_PUBLISHABLE_KEY}}"
+      src="{{CLERK_FRONTEND_API_URL}}/npm/@clerk/clerk-js@6/dist/clerk.browser.js"
+    ></script>
+    <script src="/assets/diagram-loader.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/markdown-viewer.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/theme.js?v={{ASSET_VERSION}}" defer></script>
+    <script src="/assets/viewer-page.js?v={{ASSET_VERSION}}" defer></script>
+  </head>
+  <body class="markdown-standalone-page">
+    <main id="viewer" class="markdown-page-root">
+      <div class="viewer-loading">Loading document…</div>
+    </main>
+  </body>
+</html>
