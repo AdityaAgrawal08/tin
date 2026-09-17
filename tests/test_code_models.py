@@ -159,7 +159,7 @@ def test_configured_estimate_is_cached_and_changes_with_definition_inputs_and_pr
     )
 
 
-def sdk_router(f, *, invalid=False, uncertain=False, calls=None):
+def sdk_router(f, *, invalid=False, uncertain=False, calls=None, outputs=None):
     calls = calls if calls is not None else []
 
     def wire(request):
@@ -167,7 +167,8 @@ def sdk_router(f, *, invalid=False, uncertain=False, calls=None):
         calls.append(data)
         if uncertain:
             raise httpx.ReadTimeout("test supplier lost acknowledgement", request=request)
-        text = json.dumps({"unexpected": True} if invalid else CLASSIFIED)
+        output = outputs[len(calls) - 1] if outputs is not None else CLASSIFIED
+        text = json.dumps({"unexpected": True} if invalid else output)
         return httpx.Response(
             200,
             json={

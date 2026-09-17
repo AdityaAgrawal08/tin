@@ -1,0 +1,45 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "example.feedback_digest",
+    "title": "Turn feedback into a digest",
+    "description": "Classify supplied feedback, validate its IDs, then summarize the classified feedback with a second model step.",
+    "version": "1.0.0",
+    "executor": "workflow.code",
+    "schedule_modes": ["on_demand"],
+    "human_review": {"eligible": true, "summary": "Review the feedback digest"},
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "feedback": {
+          "type": "array", "minItems": 1, "maxItems": 8,
+          "items": {"type": "string", "minLength": 1, "maxLength": 300},
+          "title": "Feedback to summarize"
+        }
+      },
+      "required": ["project_id", "feedback"]
+    },
+    "code": {
+      "runtime": "python3.12.8-stdlib-v1",
+      "entrypoint": "main.py",
+      "files": ["main.py"],
+      "timeout_seconds": 60,
+      "model_routes": {
+        "classify": {
+          "provider": "openai", "model": "gpt-5.6-luna", "max_calls": 1,
+          "max_input_bytes": 16000, "max_output_tokens": 1024
+        },
+        "summarize": {
+          "provider": "openai", "model": "gpt-5.6-luna", "max_calls": 1,
+          "max_input_bytes": 16000, "max_output_tokens": 1024
+        }
+      },
+      "output": {
+        "kind": "project.artifact", "path": "reports/FEEDBACK_DIGEST.md",
+        "media_type": "text/markdown", "max_bytes": 8000
+      }
+    }
+  }
+}

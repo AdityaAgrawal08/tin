@@ -16,6 +16,7 @@ from typing import Any
 
 from tin_lite.integrations import parse_integration_requirements
 from tin_lite.procedures import load_pinned_codex_procedure
+from tin_lite.workflow_code import load_code_package
 from tin_lite.workflow_packages import (
     MAX_DEFINITION_BYTES,
     MAX_PACKAGE_FILES,
@@ -27,6 +28,7 @@ REPOSITORY_ROOT = Path(__file__).parents[2]
 PACKAGE_DIRECTORY = "workflow_packages"
 MANIFEST_NAME = "workflow.json"
 CONTRIBUTED_SUFFIXES = {".json", ".md", ".txt", ".yaml", ".yml"}
+CODE_SUFFIXES = CONTRIBUTED_SUFFIXES | {".py", ".csv"}
 
 
 @dataclass(frozen=True)
@@ -86,11 +88,11 @@ def discover(root: Path | None = None) -> list[ContributedPackage]:
 def _validate_metadata(definition: dict[str, Any]) -> None:
     """Validate new contributions without changing historical runtime contracts.
 
-    Private-only rules (custom keys, manual schedules, isolated sandboxes and capability
+    Private-only rules (custom keys, procedure schedules, isolated sandboxes and capability
     restrictions) belong to activation, not this source contribution check.
     """
-    if definition.get("executor") != "codex.procedure":
-        raise ValueError("this contribution lane supports text-only codex.procedure packages")
+    if definition.get("executor") not in {"workflow.code", "codex.procedure"}:
+        raise ValueError("contributed packages support workflow.code or codex.procedure")
     for key, maximum in (("title", 120), ("description", 2000), ("version", 40)):
         value = definition.get(key)
         if not isinstance(value, str) or not value.strip() or len(value) > maximum:
@@ -133,7 +135,7 @@ def _validate_metadata(definition: dict[str, Any]) -> None:
     )
 
 
-def _check_files(package: ContributedPackage, *, root: Path) -> None:
+def _check_files(package: ContributedPackage, *, root: Path) -> str:
     if package.path.is_symlink():
         raise ValueError("package directory is a symlink; contributed packages hold regular files")
     if not package.path.is_dir():
@@ -154,22 +156,26 @@ def _check_files(package: ContributedPackage, *, root: Path) -> None:
         definition_path=package.definition_path,
     )
     _validate_metadata(source.definition)
+    executor = source.definition["executor"]
+    suffixes = CODE_SUFFIXES if executor == "workflow.code" else CONTRIBUTED_SUFFIXES
     declared = {root / path for path in [package.definition_path, *source.resource_paths.values()]}
     for path in present:
         relative = path.relative_to(package.path).as_posix()
-        if path.suffix.lower() not in CONTRIBUTED_SUFFIXES:
-            allowed = " ".join(sorted(CONTRIBUTED_SUFFIXES))
+        if path.suffix.lower() not in suffixes:
+            allowed = " ".join(sorted(suffixes))
             raise ValueError(
                 f"{relative} is not a file type a contributed package carries (allowed: {allowed})"
             )
         if path not in declared:
             raise ValueError(f"{relative} sits in the package but the manifest never lists it")
+    return executor
 
 
 async def validate(package: ContributedPackage, *, root: Path | None = None) -> None:
     """Raise ValueError when a contributed package would not load."""
-    _check_files(package, root=root or REPOSITORY_ROOT)
-    await load_pinned_codex_procedure(
+    executor = _check_files(package, root=root or REPOSITORY_ROOT)
+    loader = load_code_package if executor == "workflow.code" else load_pinned_codex_procedure
+    await loader(
         storage=CheckoutStorage(root or REPOSITORY_ROOT),
         repo_id=PACKAGE_DIRECTORY,
         commit_sha="checkout",

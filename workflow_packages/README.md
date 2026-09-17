@@ -1,23 +1,33 @@
 # Contributed workflow packages
 
-This folder holds contributed **text-only Codex procedure packages** in the format Tin
-already runs. CI validates every package without executing its instructions. Merging one
-does not register, activate, schedule or run it, or make it available to other projects.
+This folder accepts deterministic Python, Python with managed model steps, and Codex
+procedures. They use the same versioned package format as project-owned workflows.
+CI validates every package without executing its Python, prompts or skills.
 
-For the built-in workflows and how a catalog entry works, read
-[Adding a workflow](../docs/adding-a-workflow.md).
-Deterministic code workflows and code workflows with managed model steps use the separate
-[code workflow](../docs/code-workflows.md) and [managed model](../docs/code-model-workflows.md)
-contracts; this contribution lane does not accept uploaded Python or shell implementations.
+Start with code when you know the steps. Add model calls where judgment is useful. Use a
+procedure when an agent needs to choose the steps. [Adding a workflow](../docs/adding-a-workflow.md)
+covers authoring, tests and the maintainer-controlled public Registry registration.
 
-## What a procedure contributes
+## Code examples
 
-A workflow is a job a founder would hand to someone: find the thing, write the thing, check the
-thing. Here, you describe that job and its method for a bounded Codex run. Other Tin workflows
-can be deterministic or use explicit model steps; not every workflow is an agent session.
-Private trials of these procedure packages are manual, not scheduled.
+- [CSV summary](example.csv_summary/workflow.json): deterministic parsing, validation and totals.
+- [Feedback digest](example.feedback_digest/workflow.json): two managed model steps, with
+  Python validation between classification and summarization.
 
-## The files
+Each directory contains a manifest and `main.py`. Copy one, change its folder and manifest
+key together, and declare every file in `code.files`. Code packages accept `.py`, `.csv`,
+`.json`, `.md`, `.txt`, `.yaml` and `.yml`; shell scripts and binary resources are not accepted.
+The entrypoint exports `run(ctx, inputs)` and returns the declared path and text content.
+The examples' offline tests live in [test_public_workflows.py](../tests/test_public_workflows.py).
+They are copyable source examples, not active Registry entries.
+
+See [code workflows](../docs/code-workflows.md) and
+[managed model steps](../docs/code-model-workflows.md) for runtime and funding limits.
+
+## Codex procedure example
+
+Use this shape when the workflow needs a bounded agent run. Private trials of procedure
+packages remain manual, not scheduled.
 
 ```text
 workflow_packages/<your.workflow_key>/
@@ -32,10 +42,10 @@ The key uses a family and a name, like `growth.reddit_teardown`. The folder name
 in the manifest have to match. A skill's `name` has to match its own folder name.
 
 Skills may carry extra text beside `SKILL.md`, as `.md`, `.json`, `.txt`, `.yaml` or `.yml`.
-List every one of them in `skill_files`. Contributed packages hold text a reviewer can read, so
-they do not carry `.py` or `.sh`.
+List every one of them in `skill_files`. Procedure packages are text-only; unlike code
+packages, they do not carry `.py`. Neither package type accepts `.sh`.
 
-## The manifest
+### The manifest
 
 This one validates. Copy it and change the parts that describe your workflow.
 
@@ -118,7 +128,7 @@ your pull request. `--root /path/to/checkout` selects another checkout (not its 
 Missing manifests, symlinks and invalid roots fail the check; a README-only folder passes.
 Validation checks the contract and resources, not the quality or safety of executing instructions.
 
-## Try it on a project
+## Try the procedure example on a project
 
 Use a project you are authorized to test. Ask its coding agent for
 `get_workflow_authoring_guide(project_id)` first: private execution must be operator-enabled.
@@ -143,7 +153,7 @@ purchase a model run.
    want to execute it. Read `reports/EXAMPLE_PLAY.md` from the resulting run. Review the actual
    output before recommending the package; successful validation is not an execution test.
 
-There is no automatic import, public activation or catalog promotion in this contribution lane.
+This private test is optional; it isn't the public registration process.
 
 ## What we look for
 
@@ -152,6 +162,12 @@ the insight came from. If you ran it yourself, say what happened.
 
 ## What happens next
 
-A maintainer reads it. Merging a package puts it in this folder, where an operator can read it
-and try it on a project. Workflows that earn it become built-in ones later, which needs a
-catalog entry we write.
+A maintainer reviews the implementation, inputs, outputs, tests, cost bounds and permissions.
+Adding the key and a stable UUID to `PUBLIC_WORKFLOWS` in
+[public_workflows.py](../src/tin_lite/public_workflows.py) selects it for the next deployed
+catalog sync. That publishes the exact manifest and resources together for both dashboard
+and MCP. No new executor or copy of the implementation is needed.
+
+Merging an unlisted package only adds its source. It does not activate, schedule or run it.
+The included `example.*` packages are intentionally unlisted. Existing runs and saved
+configurations keep their selected revision when a package is upgraded.

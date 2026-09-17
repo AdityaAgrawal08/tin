@@ -8,6 +8,7 @@ import pytest
 
 from tin_lite.catalog import BUILTIN_WORKFLOWS
 from tin_lite.community import (
+    CODE_SUFFIXES,
     CONTRIBUTED_SUFFIXES,
     ContributedPackage,
     discover,
@@ -98,6 +99,8 @@ async def test_a_symlinked_resource_is_refused(tmp_path):
 def test_contributed_packages_carry_text_a_reviewer_can_read():
     assert ".py" not in CONTRIBUTED_SUFFIXES
     assert ".sh" not in CONTRIBUTED_SUFFIXES
+    assert ".py" in CODE_SUFFIXES and ".csv" in CODE_SUFFIXES
+    assert ".sh" not in CODE_SUFFIXES
 
 
 async def test_this_repository_validates():
@@ -267,16 +270,33 @@ async def test_readme_example_validates(tmp_path, private):
         validate_private_definition(source.definition)
 
 
-async def test_code_workflow_gets_an_explicit_lane_diagnostic(tmp_path):
+@pytest.mark.parametrize("model_steps", [False, True])
+async def test_code_and_model_workflows_are_public_contribution_types(tmp_path, model_steps):
+    from tin_lite.workflow_code import example_files
+
+    for path, content in example_files("reports.order_summary", model_steps=model_steps).items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+    results = await validate_all(tmp_path)
+    assert len(results) == 1
+    assert results[0][1] is None
+
+
+async def test_contributed_python_is_parsed_never_imported(tmp_path):
     from tin_lite.workflow_code import example_files
 
     for path, content in example_files().items():
         target = tmp_path / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
-    results = await validate_all(tmp_path)
-    assert len(results) == 1
-    assert "text-only codex.procedure" in str(results[0][1])
+    source = tmp_path / "workflow_packages/custom.order_report/main.py"
+    marker = tmp_path / "never-created"
+    source.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\n")
+    assert (await validate_all(tmp_path))[0][1] is None
+    assert not marker.exists()
+    source.write_text("def run(:\n")
+    assert "invalid Python syntax" in str((await validate_all(tmp_path))[0][1])
 
 
 async def test_oversized_manifest_is_rejected_before_reading_it(tmp_path, monkeypatch):

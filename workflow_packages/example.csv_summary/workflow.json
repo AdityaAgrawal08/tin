@@ -1,0 +1,32 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "example.csv_summary",
+    "title": "Summarize a CSV",
+    "description": "Validate an amount_cents column, count the rows and total their values. No model calls.",
+    "version": "1.0.0",
+    "executor": "workflow.code",
+    "schedule_modes": ["on_demand"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "csv_text": {"type": "string", "minLength": 1, "maxLength": 16000, "title": "CSV with an amount_cents column"}
+      },
+      "required": ["project_id", "csv_text"]
+    },
+    "code": {
+      "runtime": "python3.12.8-stdlib-v1",
+      "entrypoint": "main.py",
+      "files": ["main.py"],
+      "timeout_seconds": 10,
+      "output": {
+        "kind": "project.artifact",
+        "path": "reports/CSV_SUMMARY.md",
+        "media_type": "text/markdown",
+        "max_bytes": 2000
+      }
+    }
+  }
+}

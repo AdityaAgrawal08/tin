@@ -10,4 +10,6 @@
 
 <!-- Mention limitations or setup changes. For integrations, link official API/auth docs,
      explain permissions and paid effects, and include mocked provider tests. No real keys,
-     customer data or production credentials. Remove this section if not needed. -->
+     customer data or production credentials. For workflows, name the execution type,
+     inputs/output, model limits, retry tests and whether public registration is requested.
+     Remove this section if not needed. -->

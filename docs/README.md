@@ -35,6 +35,8 @@ your own accounts before use; ordinary contributor tests need no production cred
 ## Workflow and integration contributions
 
 - [Adding a workflow](adding-a-workflow.md) and [definition contracts](workflow-definition-foundation.md).
+- [Public workflow packages](../workflow_packages/README.md): deterministic Python, multi-step
+  managed-model Python and Codex procedures, with explicit maintainer registration.
 - [Private activation](private-workflow-activation.md), [code workflows](code-workflows.md),
   [managed model steps](code-model-workflows.md) and [code schedules](code-workflow-schedules.md).
 - [Project API connections](project-api-connections.md): secure credentials and external requests.

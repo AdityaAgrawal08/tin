@@ -1,6 +1,6 @@
 # Feature status and release readiness
 
-Current as of September 16, 2026. This is the current capability overview;
+Current as of September 17, 2026. This is the current capability overview;
 internal implementation plans and production acceptance records are not part of this source release.
 “Implemented” does not mean enabled for every deployment, independently security-audited,
 or verified in a fresh self-hosted installation. The live Registry supplies each workflow's
@@ -12,6 +12,7 @@ inputs, prerequisites and supported schedule modes.
 | --- | --- | --- |
 | Dashboard and MCP | Project files, workflow discovery, saved configurations, runs, Activity and review share the same services. | Exact project membership is required; workspace administration does not grant sibling-project access. |
 | Built-in workflows | Context, research, visibility/site audits, keyword and content planning, style capture, drafting, diagrams, product QA, video and email outreach. | Provider configuration, connected resources and workflow-specific execution limits still apply. |
+| Public workflow packages | Source validation and explicit maintainer registration for deterministic Python, multi-step managed-model Python, and Codex procedures. Catalog sync publishes pinned packages through the existing Registry. | Source support is not a production rollout. Unselected packages and shipped examples do not become customer workflows. Package runtime limits and normal billing still apply. |
 | Organic traffic system | The current parent can plan, optionally prepare technical fixes, draft the next eligible planned item, wait for review/revisions and deliver the approved article as an unmerged GitHub PR. | GitHub delivery requires the selected connection. Without GitHub, or in draft-only mode, the approved Markdown remains in project Files. Plan dates are not an automatic six-month publishing schedule. |
 | Content review | Read the draft, request changes in text, review a new revision and approve through dashboard or MCP. Generation notes stay separate from publishable copy. | Approval applies to the reviewed revision. PR delivery neither merges the PR nor publishes the website. |
 | Saved schedules | Eligible definitions support daily or selected-weekday execution at a local time in an IANA timezone, with skip-overlap and bounded catch-up. | Not every workflow is schedulable. Paid scheduled occurrences need standing spending authority, not just a positive balance. |
@@ -37,7 +38,7 @@ does not remove this separate private-execution gate.
 Code-only bounded execution uses no Tin credits. Managed model steps use hosted credits;
 custom API requests use the connected provider account, which may charge separately. The
 trusted gateway inserts credentials; author code never receives the reusable key. Model access
-uses Tin's server keys on hosted Tin and the operator's keys when self-hosted. The private code
+uses Tin's server keys on hosted Tin and the operator's keys when self-hosted. The code
 model contract currently admits only the explicitly registered OpenAI Luna and Astra routes;
 the existence of Anthropic, Gemini and OpenRouter adapters does not enable arbitrary models
 or prices.
