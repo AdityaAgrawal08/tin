@@ -110,22 +110,31 @@ For data from Google Docs and Drive, analytics providers such as GA4 and PostHog
 
 ## Bring your own workflows
 
-A Codex procedure combines a prompt and skills with an explicit contract: typed inputs, allowed outputs, required integrations, and a review policy. Tin validates the result before saving it or delivering it through an integration.
+Start with ordinary Python when you know the steps. Add managed model calls where the work
+needs judgment; a workflow can have several of them, with code handling the sequence,
+branches and validation. Use a Codex procedure when an agent needs to explore and choose
+the steps itself.
+
+All three can be contributed as public workflow packages:
 
 ```text
-codex_procedures/<workflow>/
-├── PROMPT.md
-└── skills/
-    └── <entry-skill>/
-        ├── SKILL.md
-        └── resources/
+workflow_packages/<workflow>/
+├── workflow.json
+└── main.py          # Python, optionally calling managed models
 ```
 
-Built-in procedures live in this repository. Catalog sync publishes the definition, prompt, and skills together as one version. New configurations can use that version; existing configurations and running work keep the version they selected.
+A procedure package uses `PROMPT.md` and `skills/` instead of `main.py`. The manifest declares
+typed inputs, bounded outputs, integrations and review. Maintainers review contributions and
+explicitly select packages for the Registry; catalog sync publishes each selected package as
+one pinned version. Existing runs and saved configurations keep their selected version.
 
-### Code-defined private workflows
+See [Adding a workflow](docs/adding-a-workflow.md) and the
+[deterministic and two-model-step examples](workflow_packages/README.md). Native code and
+model-backed workflows can also be contributed when the bounded package runtime isn't enough.
 
-The bounded private-workflow pilot also supports ordinary Python: typed inputs, isolated
+### Private workflows
+
+The bounded private-workflow pilot uses the same Python contract: typed inputs, isolated
 execution, optional managed model calls, project API connections, durable reports, and
 eligible daily or weekly schedules.
 Your coding agent authors and tests the package; Tin runs it independently. Code-only
@@ -139,7 +148,7 @@ reuse saved workflow scheduling; paid occurrences need standing spending authori
 
 Private workflows live in a project's files and still require operator enablement. A coding agent writes a package, validates it, and explicitly activates it through MCP. Code workflows produce a bounded text artifact. Private Codex procedures can produce a project artifact or an unmerged GitHub PR, but remain on demand. Direct SDK credentials in author code and general one-command skill imports are not supported. See [feature status](docs/feature-status.md) for the supported-versus-experimental boundaries.
 
-[docs/adding-a-workflow.md](docs/adding-a-workflow.md) describes the contract. Fixes to built-in workflows can be contributed back so other projects can use them.
+Public or private determines who can use a workflow, not whether it runs code or an agent.
 
 ## Case study: from $45 to $2,105 a month in four months
 

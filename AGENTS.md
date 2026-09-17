@@ -78,6 +78,10 @@ cross-cutting implementation safeguards, not historical deployment logs.
   revision plus the existing operator allowlist. workflow.code supports bounded code,
   managed model steps, service requests and eligible schedules. Private procedures remain
   isolated and on demand; they are not interactive project.task sessions.
+- Public contributions also support deterministic Python and multi-step managed-model code,
+  not only Codex procedures. Validate packages without executing author code; select them
+  explicitly in PUBLIC_WORKFLOWS for catalog publication. Keep examples unregistered, and
+  preserve the separate private activation gate. See docs/adding-a-workflow.md.
 
 ## Billing
 

@@ -538,7 +538,9 @@ def test_workflow_registry_is_explicit_and_narrow() -> None:
 
 
 @pytest.mark.asyncio
-async def test_builtin_sync_keeps_the_immutable_definition_commit() -> None:
+async def test_builtin_sync_keeps_the_immutable_definition_commit(monkeypatch) -> None:
+    # This fixture models the native catalog, not a deployment's selected public packages.
+    monkeypatch.setattr("tin_lite.public_workflows.PUBLIC_WORKFLOWS", ())
     _, workflow, _ = fixture_state()
 
     class FakeCatalogDatabase:

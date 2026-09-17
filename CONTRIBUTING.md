@@ -2,8 +2,10 @@
 
 Start with the [README](README.md), [feature status](docs/feature-status.md), and
 [architecture](docs/architecture.md). For workflow contributions, read
-[Adding a workflow](docs/adding-a-workflow.md). To contribute a workflow without a catalog
-entry, read [contributed workflow packages](workflow_packages/README.md).
+[Adding a workflow](docs/adding-a-workflow.md). Public contributions can be deterministic
+Python, Python with multiple managed model steps, or Codex procedures. Start with the
+[copyable packages](workflow_packages/README.md); maintainers explicitly select reviewed
+packages for the Registry. Merging source alone does not activate a workflow.
 Coding agents should also read [AGENTS.md](AGENTS.md).
 The [documentation index](docs/README.md) groups contributor and self-hosting references.
 

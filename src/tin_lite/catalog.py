@@ -93,6 +93,7 @@ from tin_lite.procedures import (
     SandboxProfile,
     TestIdentityPolicy,
 )
+from tin_lite.public_workflows import load_public_workflows
 from tin_lite.studio import STUDIO_VOICES
 from tin_lite.studio_contracts import (
     DEMO_VIDEO_MEDIA_TYPE,
@@ -2149,9 +2150,23 @@ PARENT_CHILD_KEYS: dict[str, tuple[str, ...]] = {
 async def sync_builtin_workflows(
     *, database: Database, storage: CodeStorage, system_wiki: SystemWikiRef
 ) -> None:
+    candidates = []
+    for builtin in BUILTIN_WORKFLOWS:
+        definition, resources = builtin.definition_and_files_with_wiki(system_wiki)
+        canonical_bytes = (json.dumps(definition, indent=2, sort_keys=True) + "\n").encode()
+        candidates.append(
+            (builtin, definition, {builtin.definition_path: canonical_bytes, **resources})
+        )
+    candidates.extend(
+        (package, package.definition, package.files) for package in await load_public_workflows()
+    )
+    if len({source.id for source, _, _ in candidates}) != len(candidates) or len(
+        {source.key for source, _, _ in candidates}
+    ) != len(candidates):
+        raise RuntimeError("public workflow IDs and keys must be unique across the catalog")
     prepared = {}
     prerequisites: dict[str, tuple[WorkflowPrerequisite, ...]] = {}
-    for builtin in BUILTIN_WORKFLOWS:
+    for builtin, definition, files in candidates:
         existing = await database.get_workflow(builtin.id)
         if existing and (existing.project_id is not None or existing.key != builtin.key):
             raise RuntimeError("built-in workflow ID belongs to a different workflow")
@@ -2165,17 +2180,17 @@ async def sync_builtin_workflows(
             )
         ):
             raise RuntimeError("published workflow executor and source location cannot change")
-        definition, resource_files = builtin.definition_and_files_with_wiki(system_wiki)
         validate_input_schema(definition["input_schema"])
+        if definition.get("system") is not None and definition["system"] not in WORKFLOW_SYSTEM_IDS:
+            raise ValueError(f"workflow {builtin.key} references an unknown system")
         parse_integration_requirements(definition.get("integration_requirements"))
         prerequisites[builtin.key] = parse_workflow_prerequisites(
             definition.get("prerequisites"), input_schema=definition["input_schema"]
         )
-        canonical_bytes = (json.dumps(definition, indent=2, sort_keys=True) + "\n").encode()
         prepared[builtin.key] = (
             existing,
             definition,
-            {builtin.definition_path: canonical_bytes, **resource_files},
+            files,
         )
     try:
         validate_prerequisite_graph(prerequisites)
@@ -2187,7 +2202,7 @@ async def sync_builtin_workflows(
             name=system.name,
             display_order=system.display_order,
         )
-    for builtin in BUILTIN_WORKFLOWS:
+    for builtin, _, _ in candidates:
         existing, definition, files = prepared[builtin.key]
         if builtin.key in PARENT_CHILD_KEYS:
             # The parent's immutable revision must contain all of its exact child

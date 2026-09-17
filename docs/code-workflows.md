@@ -12,6 +12,10 @@ Private describes project ownership and access. `workflow.code` is a separately 
 Temporal executor for ordinary Python functions. Existing reusable `codex.procedure` packages,
 interactive `project.task` runs, and their historical contracts remain supported.
 
+This same contract also accepts [public contributions](adding-a-workflow.md). Public packages
+are reviewed and explicitly registered by maintainers; they do not go through project-local
+activation. The lifecycle below describes the private pilot, not a restriction on public code.
+
 ## Authoring and lifecycle
 
 Use the existing `tin-workflow-package-v1` format. The complete Tin-owned fixture is

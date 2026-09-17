@@ -185,6 +185,8 @@ def test_builtin_tree_is_acyclic_and_names_only_known_workflows():
 
 
 async def test_sync_fails_on_a_cycle_before_any_registry_write(monkeypatch):
+    monkeypatch.setattr("tin_lite.public_workflows.PUBLIC_WORKFLOWS", ())
+
     def builtin(key, requires):
         return BuiltinWorkflow(
             id=uuid4(),
