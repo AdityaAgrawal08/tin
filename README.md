@@ -4,7 +4,7 @@ Open-source marketing system, designed for coding agents.
 
 Why would you invent marketing from first principles when you can use a battle-tested marketing stack in 10 minutes?
 
-Now with **26+** reliable workflows you can use right away. 
+Now with [**26+** reliable workflows](docs/workflows.md) you can use right away. 
 
 [Website](https://tin.computer) · [Try it in the browser](https://app.tin.computer)
 
