@@ -10,6 +10,7 @@
     "test:connections-browser": "node --test web/project-connections.browser.test.js",
     "test:auth-browser": "node --test web/auth.browser.test.js web/mcp-consent.browser.test.js web/app-domain.browser.test.js",
     "test:project-menu-browser": "node --test web/project-menu.browser.test.js",
+    "test:lock-page-browser": "node --test web/lock-page.browser.test.js",
     "test:project-delete-browser": "node --test web/project-delete.browser.test.js",
     "test:workflow-review-browser": "node --test web/workflow-review.browser.test.js",
     "test:content-delivery-browser": "node --test web/content-delivery.browser.test.js",
