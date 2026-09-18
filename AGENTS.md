@@ -17,6 +17,34 @@ cross-cutting implementation safeguards, not historical deployment logs.
 - Do not copy runtime dependencies from unrelated repositories. Keep the import-linter
   boundaries and the explicit registry; no wildcard workflow registration.
 
+## Workflows
+
+- A workflow is a repeatable job: declared inputs, a bounded executor and a defined output.
+  Tin runs it, stores the result and exposes it through the dashboard and MCP. The shipped
+  catalog is listed in [docs/workflows.md](docs/workflows.md), generated from
+  `src/tin_lite/catalog.py`; after a catalog change run `scripts/dump_catalog.py`, never
+  edit the list by hand.
+- Author in this order, per [docs/adding-a-workflow.md](docs/adding-a-workflow.md): start
+  with code, add a model call only where a step needs judgment, and use an agent only when
+  choosing the steps is itself the job. These are three executors, not three products.
+  - Code flow (`workflow.code`): `workflow.json` plus `main.py` exporting
+    `run(ctx, inputs)`. Do not ask a model to do what code can compute.
+  - LLM flow (`workflow.code` with `code.model_routes`): code owns sequence, branching,
+    validation and rendering and calls `ctx.models.generate(route=, step=, ...)`. Keep
+    each `step` ID stable and validate every model result before using it.
+  - Agentic flow (`codex.procedure`): `workflow.json`, `PROMPT.md` and
+    `skills/<name>/SKILL.md`. The contract still bounds inputs, workspace, integrations
+    and output, which is a project artifact or an unmerged GitHub PR.
+- Packages live in `workflow_packages/<key>/` with the same key in the manifest, and ship
+  offline fixture tests that include a plausible but unusable model result. Check with
+  `uv run tin-lite validate-community`. Copy from `example.csv_summary` and
+  `example.feedback_digest`; `example.*` and `custom.*` keys are reserved.
+- Respect the package boundary: no `pip`, raw credentials or direct network access, and
+  bounded runtime and model calls; see [code execution](docs/code-workflows.md) and
+  [model steps](docs/code-model-workflows.md). Longer durable orchestration is a native
+  change registered explicitly in `catalog.py`, `workflows.py` and the worker; open an
+  issue first. Never write another executor for a package.
+
 ## Identity and routing
 
 - Project membership is the authorization boundary for HTTP and MCP. Workspace
