@@ -241,8 +241,8 @@ def plan_picks(text: str) -> tuple[list[str], list[str]]:
 CONTROL_OPTIONS: dict[str, str] = {
     "pull_request": "Tin opens a pull request; nothing changes until you merge it.",
     "review_in_tin": (
-        "Tin drafts; you approve each item in Decisions, and your yes opens a pull request "
-        "or publishes when GitHub is connected."
+        "Tin drafts; you approve each item in Decisions. Approved drafts stay in Tin unless "
+        "GitHub pull-request delivery is configured. A pull request still needs your merge."
     ),
 }
 _CONTROL = re.compile(r"^- \[(?P<mark>[ xX])\]\s+control:\s*(?P<option>[a-z_]+)\b")
@@ -701,13 +701,13 @@ def _when(action: dict[str, Any]) -> str:
 def _lands(action: dict[str, Any], delivery: dict[str, Any] | None) -> str:
     lands = expectation(action["key"])["lands"]
     if action["key"] in CONTENT_DRAFT_KEYS:
-        mode = (delivery or {}).get("mode")
+        mode = action.get("delivery_mode") or (delivery or {}).get("mode")
         where = (delivery or {}).get("repository") or "your repository"
         if mode == "github_pr":
             return f"Decisions, as a draft; your yes opens a pull request in {where}"
         if mode == "github_commit":
             return f"Decisions, as a draft; your yes publishes it to {where}"
-        return "Decisions, as a draft; connect GitHub and your yes opens a pull request"
+        return "Decisions, as a draft; approved copy stays in Tin"
     return lands
 
 
@@ -728,11 +728,23 @@ def founder_words(setup: dict[str, Any], *, titles: dict[str, str]) -> dict[str,
     scheduled = [a for a in actions if a.get("status") == "scheduled"]
     not_running = [a for a in actions if a.get("status") in {"declined", "blocked", "skipped"}]
     roles = len(scheduled)
+    incomplete = [
+        a
+        for a in actions
+        if a.get("status") in {"blocked", "skipped", "declined"}
+        or a.get("first_run_status") == "blocked"
+        or a.get("delivery_error")
+    ]
 
     def title(action: dict[str, Any]) -> str:
         return titles.get(action["key"], action["key"])
 
     lines: list[str] = []
+    if incomplete:
+        lines.append(
+            f"Setup is partial for {business}: {len(incomplete)} workflow(s) "
+            "were left out or need attention."
+        )
     if roles:
         lines.append(
             f"{business} now has a marketing system running: {roles} "
@@ -743,7 +755,7 @@ def founder_words(setup: dict[str, Any], *, titles: dict[str, str]) -> dict[str,
         lines.append(f"{business} has its first Tin runs under way.")
     else:
         lines.append(f"Tin could not start anything for {business} yet; here is why.")
-    if details.get("summary"):
+    if details.get("summary") and not incomplete:
         lines.append(details["summary"])
     lines.append("")
     for a in scheduled:
@@ -777,7 +789,7 @@ def founder_words(setup: dict[str, Any], *, titles: dict[str, str]) -> dict[str,
         f"In three months: {outlook['quarter']}" if outlook.get("quarter") else "",
     ]
     expect = [item for item in expect if item]
-    if expect:
+    if expect and not incomplete:
         relay.append(" ".join(expect))
     control = setup.get("control")
     if control in CONTROL_OPTIONS:
@@ -785,6 +797,10 @@ def founder_words(setup: dict[str, Any], *, titles: dict[str, str]) -> dict[str,
     relay.append(
         f"Two pages are yours: My system ({links['my_system']}), every workflow with its runs, "
         f"and Decisions ({links['decisions']}), anything waiting for your yes."
+    )
+    relay.append(
+        f"Reports arrive in Files ({links['files']}). Open Tin to check results; "
+        "email and Slack result notifications are not available."
     )
     for a in not_running:
         if a.get("status") == "declined":
@@ -850,7 +866,14 @@ def render_report(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
         return titles.get(action["key"], action["key"])
 
     heading = _join(names) if names else "your systems"
-    lines = [f"# Tin is set up: {heading}", "", founder_message(setup, titles=titles), ""]
+    partial = any(
+        a.get("status") in {"blocked", "skipped", "declined"}
+        or a.get("first_run_status") == "blocked"
+        or a.get("delivery_error")
+        for a in actions
+    )
+    label = "Tin setup needs attention" if partial else "Tin is set up"
+    lines = [f"# {label}: {heading}", "", founder_message(setup, titles=titles), ""]
     lines += ["## What runs", ""]
     if not scheduled and not started:
         lines.append("Nothing could start; see above.")
@@ -872,10 +895,16 @@ def render_report(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
             )
         elif mode == "github_commit":
             lines.append(f"Approved drafts publish straight to {delivery.get('repository')}.")
+        elif mode == "partial":
+            lines.append(
+                "Pull-request delivery was saved for only some workflows. "
+                "See each workflow's destination above; the others keep drafts in Tin."
+            )
         else:
             lines.append(
-                "Approved drafts stay in Tin until GitHub is connected; then your yes opens a "
-                "pull request."
+                "Approved drafts stay in Tin. Connect the website repository and configure "
+                "pull-request delivery to send approved copy to GitHub. "
+                "Nothing merges automatically."
             )
     lines += ["", f"Plan revision: `{setup['plan_revision']}`.", ""]
     words = founder_words(setup, titles=titles)

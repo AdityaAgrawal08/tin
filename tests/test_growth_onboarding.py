@@ -331,9 +331,10 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
     message = founder_message(setup, titles=titles)
     # The win first, then each role as a benefit, then what is already there.
     assert message.startswith(
-        "Example now has a marketing system running: 2 roles on your calendar, "
-        "America/Los_Angeles time.\nTin measures where AI answers name you."
+        "Setup is partial for Example: 2 workflow(s) were left out or need attention."
     )
+    assert "2 roles on your calendar, America/Los_Angeles time." in message
+    assert "Tin measures where AI answers name you." not in message
     assert (
         "- Monday at 09:00: Audit AI visibility. Lands in Files, reports/AI_VISIBILITY.md."
         in message
@@ -345,7 +346,7 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
     assert "Already under way: audit ai visibility (first result in about ten minutes)." in message
     assert (
         "In a week: a first read. In a month: two pages. In three months: first mentions."
-        in message
+        not in message
     )
     assert "Your control: Tin drafts; you approve each item in Decisions" in message
     assert "/system?project=" in message and "/decisions?project=" in message
@@ -363,15 +364,15 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
     # The same words in the two parts the agent treats apart: Tin's own words to quote (the
     # win, the roles, what is under way) and the facts to relay in the agent's words.
     words = founder_words(setup, titles=titles)
-    assert words["quote"].startswith("Example now has a marketing system running: 2 roles")
+    assert words["quote"].startswith("Setup is partial for Example")
     assert words["quote"].endswith(
         "Already under way: audit ai visibility (first result in about ten minutes)."
     )
     assert "In a week" not in words["quote"] and "Two pages" not in words["quote"]
     assert [item.split(":")[0] for item in words["relay"]] == [
-        "In a week",
         "Your control",
         "Two pages are yours",
+        "Reports arrive in Files (https",
         "Waiting",
         "Left out by your choice",
         "Tell me anything you do by hand for marketing and I will have Tin build it as a "
@@ -381,7 +382,7 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
     assert message == "\n\n".join([words["quote"], *words["relay"]])
 
     text = render_report(setup, titles=titles)
-    assert text.startswith("# Tin is set up: AI visibility\n\n" + message)
+    assert text.startswith("# Tin setup needs attention: AI visibility\n\n" + message)
     assert "## What runs" in text and "## How drafts ship" in text
     assert (
         "Approved drafts open a pull request in example/site under content/blog/{slug}.md" in text

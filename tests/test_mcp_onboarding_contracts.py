@@ -86,6 +86,11 @@ async def test_onboarding_identifier_and_ready_to_call_inspection_both_work(acco
     f = account
     workflow = await install(f, "growth.onboarding")
     started = await call(f, "get_started", project_id=str(f.project.id))
+    assert started["onboarding_contract_version"] == 1
+    assert started["delivery_destination"]["channel"] == "tin"
+    assert started["delivery_destination"]["notifications_enabled"] is False
+    assert {n["provider"] for n in started["access_needs"]} == {"infra.github", "analytics.gsc"}
+    assert started["first_deliverables"] and started["result_links"] == []
     first = started["first_workflow"]
     assert first["id"] == str(workflow.id)
     generic = await call(f, "get_workflow", workflow_id=first["id"])
