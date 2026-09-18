@@ -34,6 +34,7 @@ your own accounts before use; ordinary contributor tests need no production cred
 
 ## Workflow and integration contributions
 
+- [Built-in workflows](workflows.md): generated list with inputs and outputs.
 - [Adding a workflow](adding-a-workflow.md) and [definition contracts](workflow-definition-foundation.md).
 - [Public workflow packages](../workflow_packages/README.md): deterministic Python, multi-step
   managed-model Python and Codex procedures, with explicit maintainer registration.
