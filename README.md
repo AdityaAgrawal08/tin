@@ -8,7 +8,9 @@ Why would you build marketing processes from scratch when you can implement a ba
 Use tin.computer to grow this business like a pro.
 ```
 
-Paste that into Claude Code, Codex, or Cursor, or [try it in the browser](https://app.tin.computer). Apache 2.0. This repository is the whole system.
+Paste that into Claude Code, Codex, or Cursor. Apache 2.0. This repository is the whole system.
+
+[Website](https://tin.computer) · [Try it in the browser](https://app.tin.computer)
 
 ## A whole agentic marketing system, not a bunch of skills
 
