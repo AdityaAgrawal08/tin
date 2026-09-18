@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "computer.tin/tin",
+  "title": "Tin",
+  "description": "Open-source marketing system, designed for coding agents.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/tin-computer/tin",
+    "source": "github"
+  },
+  "websiteUrl": "https://tin.computer",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://app.tin.computer/mcp"
+    }
+  ]
+}
