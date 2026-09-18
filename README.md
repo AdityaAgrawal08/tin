@@ -2,29 +2,61 @@
 
 Open-source marketing system, designed for coding agents.
 
-Why would you build marketing processes from scratch when you can implement a battle-tested marketing stack and a library of workflow templates in 15 minutes?
+Why would you invent marketing from first principles when you can use a battle-tested marketing stack in 10 minutes?
 
-```text
-Use tin.computer to grow this business like a pro.
-```
-
-Paste that into Claude Code, Codex, or Cursor. Apache 2.0. This repository is the whole system.
+Now with **26+** reliable workflows you can use right away. 
 
 [Website](https://tin.computer) · [Try it in the browser](https://app.tin.computer)
 
+## Quick Start
+
+### Connect from a coding agent
+
+The hosted dashboard, API and MCP service use [app.tin.computer](https://app.tin.computer). Add the MCP connection from your project directory.
+
+Claude Code:
+
+```bash
+claude mcp add --transport http tin https://app.tin.computer/mcp
+```
+
+Then open Claude Code and use `/mcp` to authenticate Tin.
+
+Codex:
+
+```bash
+codex mcp add tin --url https://app.tin.computer/mcp
+```
+
+Complete the browser login when prompted. For an existing connection that needs authentication, use `codex mcp login tin`.
+
+Cursor, in `.cursor/mcp.json`:
+
+```json
+{ "mcpServers": { "tin": { "url": "https://app.tin.computer/mcp" } } }
+```
+
+Use Cursor's MCP controls to connect and complete authentication.
+
+Start a new agent session if Tin's tools have not appeared. To check the connection, ask it to call `list_projects`. Your agent can also delete a project you created when you ask it to; it confirms the exact name first, and billing history stays. Then ask:
+
+```text
+Use Tin to grow my project like a pro!
+```
+
 ## A whole agentic marketing system, not a bunch of skills
 
-- **Work that continues between sessions.** Save a workflow with its inputs and, where supported, a schedule. Temporal handles its timers, retries, and waits for your approval.
-- **Context that carries forward.** Reports, drafts, research, and a maintained project wiki live in a git repository. Later runs can read them instead of starting from scratch.
+- **Work that continues between sessions.** Save a workflow with its inputs and a schedule. Tin handles its timers, retries, and waits for your approval.
+- **Context that carries forward.** Reports, research, and a project wiki live in a git repository. Later runs don't start from scratch.
 - **Workflows you can inspect.** The catalog covers organic growth, content, outreach, product QA, and creative work. Each definition states what it needs, what it produces, and whether it needs review.
 - **Review before delivery.** Read an article, request changes, or approve a campaign. GitHub delivery opens a pull request for you to merge.
 - **One project across your tools.** Your coding agent and the browser share the same files, run history, and decisions, with the same project permissions.
 - **Workflow evaluation, coming.** Each template gets an eval set and a blind second reader, so the workflows get sharper week after week.
 - **Growth experiment tracking, coming.** Every change becomes an experiment with a before, an after, and a verdict.
 
-## Start from the project your agent already knows
+## Use the agent that already knows your project
 
-Connect Tin over MCP in Claude Code, Codex, or Cursor. Your agent can read your local repository, ask about the business, and use Tin's onboarding workflow to prepare a plan.
+Connect Tin over MCP in Claude Code, Codex, or Cursor. Your agent can read your local repository, ask you about the business, and use Tin's onboarding workflow to prepare a plan.
 
 It starts with practical questions: what are you trying to achieve, how much time and budget can you put into it, and what should it avoid? The plan uses that context alongside the workflows and integrations available to your project.
 
@@ -44,24 +76,15 @@ What would a useful result look like in the next sixty days,
 and how much time can you spend reviewing work each week?
 ```
 
-You choose the plan and allow the connections it needs. After approval, Tin creates the selected configurations and starts the initial work it can run. It reports what was set up and what is still blocked. Choosing a plan does not silently connect accounts or start every workflow in the catalog.
-
-The in-product chat can also find and start workflows. It uses the same authenticated run API; the model's proposed action is checked before anything starts.
+You choose the plan and allow the connections it needs. After approval, Tin creates the selected configurations and starts the initial work it can run. It reports what was set up and what is still blocked. 
 
 ## From a useful prompt to work you can rely on
 
 A good skill tells an agent how to do something. Running that skill every week adds other problems: which version should it use, where does its context come from, what happens after a failure, and who approves the result?
 
-Tin handles those parts in code.
+Tin handles those parts.
 
 ![A skill becomes a workflow with scheduling, project context, execution checks, and review](docs/figures/skill-to-workflow.png)
-
-- **Scheduling.** Saved workflows can run daily or on selected weekdays in your timezone. Overlapping occurrences are skipped. The catch-up window is limited to 24 hours.
-- **Versioned instructions.** A run pins its workflow definition and skill files. Updating a template does not change work already in progress. Saved configurations keep their selected version.
-- **Recovery.** Tin records completed steps so retries can reuse their results. Uncertain external effects, such as an email whose delivery could not be confirmed, are reconciled before another attempt.
-- **Context and cost.** Workflows select bounded inputs rather than loading the whole project history. Model routes name their provider and model explicitly. Cost estimates and usage records help you track paid runs.
-- **Review.** A workflow declares whether its output needs approval. Article feedback starts a revision of that article, preserving its original brief and writing guide. The current draft stays in the same decision queue.
-- **Testing.** CI runs unit and browser tests, chat-routing checks, and replays of accepted Temporal histories. Some workflows also validate their evidence and review model output.
 
 ## What you can run
 
@@ -87,13 +110,9 @@ The live Registry is the source for each workflow's inputs and requirements. [do
 
 A repository says a lot about how a product works. It says less about why customers buy it, what they misunderstand, or how you want to sound. Add the material that fills those gaps: customer interviews, support questions, research, and examples of your own writing.
 
-Project files are plain files with git history. Reports, drafts, lists, and the wiki are readable from the browser or over MCP. A maintained index helps workflows find useful context without putting every file into every prompt.
-
 Your project can also hold `SKILL.md` files under `.agents/skills/`. Workflows load the skills they declare, such as a writing-style guide. Tin can help extract that guide from samples you select, and you can edit it directly. A skill in your local repository is not automatically available to a hosted run; your agent needs to save the relevant material to the Tin project.
 
 Public articles and planned drafts support feedback in the reader or through MCP. Tell Tin what to change, compare the revision, and approve the version you want. Generation notes stay separate from public copy. With GitHub delivery configured, an approved article can become a pull request; approval does not merge or deploy it.
-
-Email campaigns have a different approval: you review the recipients, copy, and sending schedule before sending begins. Reports generally finish without a review step.
 
 ## Connect the services the work needs
 
@@ -197,44 +216,6 @@ A typical artifact-producing run looks like this. Its workflow determines whethe
 The switchboard checks the active run's lease and the repository's `expectedHeadSha` before making a commit. For procedure outputs, a conflicting destination edit preserves the new result for you to resolve. Completed-step receipts let a retry reuse work that is already done.
 
 That is the foundation: files and recorded results carry forward, while the process that produced them can be replaced. [docs/architecture.md](docs/architecture.md) goes into more detail; [AGENTS.md](AGENTS.md) records the implementation boundaries and acceptance checks.
-
-## Install
-
-### Connect from a coding agent
-
-The hosted dashboard, API and MCP service use [app.tin.computer](https://app.tin.computer). Add the MCP connection from your project directory. Existing connections using the retired `lite` address should update their server URL and reconnect.
-
-Claude Code:
-
-```bash
-claude mcp add --transport http tin https://app.tin.computer/mcp
-```
-
-Then open Claude Code and use `/mcp` to authenticate Tin.
-
-Codex:
-
-```bash
-codex mcp add tin --url https://app.tin.computer/mcp
-```
-
-Complete the browser login when prompted. For an existing connection that needs authentication, use `codex mcp login tin`.
-
-Cursor, in `.cursor/mcp.json`:
-
-```json
-{ "mcpServers": { "tin": { "url": "https://app.tin.computer/mcp" } } }
-```
-
-Use Cursor's MCP controls to connect and complete authentication.
-
-Clerk handles login and consent, using Tin's styled pages. Tin checks project membership on each call. A legacy Tin Computer account uses the same identity, but legacy projects and permissions are separate. Opening the product accepts a valid invitation first; otherwise, a user without a project gets a personal workspace and project.
-
-Start a new agent session if Tin's tools have not appeared. To check the connection, ask it to call `list_projects`. Your agent can also delete a project you created when you ask it to; it confirms the exact name first, and billing history stays. Then ask:
-
-```text
-Use Tin to grow my project like a pro!
-```
 
 ### Run Tin yourself
 
