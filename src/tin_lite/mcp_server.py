@@ -360,10 +360,15 @@ SERVER_INSTRUCTIONS = """Tin runs marketing for a business as scheduled workflow
 First turn: if the person has not said what they want from Tin and list_projects shows no project
 for this folder's business, offer in one sentence to set up marketing for it through Tin and ask
 for a go-ahead before calling anything. Every business gets its own project named after it
-(create_project); the personal "<name>'s project" is not for a business. When a tool result
-carries `tell_the_founder`, relay it word for word under its own line, then add only the next
-step. Guess how the founder sees the project (main, side or fun) and what they most want next
-from the codebase and your session; say the guess in one line; nothing blocks on it.
+(create_project); the personal "<name>'s project" is not for a business. Two fields on a tool
+result are for the founder, and you treat them apart: `quote` is Tin's own words, and you relay
+it as given, set apart on its own lines, unchanged and unshortened; `relay` is a list of facts,
+and you tell them to the founder in your own words, woven into your reply, in whatever order
+and length the conversation calls for. Never quote a relay item, and never paraphrase a quote.
+`tell_the_founder` is the two joined for older clients; when quote or relay is present, ignore
+it. After the founder's words comes only the next step. Guess how the founder sees the project
+(main, side or fun) and what they most want next from the codebase and your session; say the
+guess in one line; nothing blocks on it.
 
 Onboarding, part 1: call get_started(project_id) and follow it. Tell the founder you will read the
 codebase for a minute or two, then start Tin's plan. Answer everything yourself, from the
@@ -389,11 +394,11 @@ any action, wait a minute before reading the run; if get_run's service.uptime_se
 progress.updated_at moving. Speak of a run in get_run's status_label words (queued, working,
 waiting for you, done), never in raw status values.
 
-Part 2: when the run holds, say the plan is ready and that the next few minutes are theirs. Open by
-relaying Tin's view word for word, under a heading of its own such as "Tin's read on <business>"
-(the plan's "Tin's view" section, also get_run's review_summary). Then show what Tin can run for
-them: the plan's "What Tin would run" list in rank order, one line per system (what Tin runs, how
-often, what it needs), with Tin's suggested set marked. Then ask ONE open question, in chat, not
+Part 2: when the run holds, say the plan is ready and that the next few minutes are theirs (the
+run's relay). Open with the run's quote, Tin's view, under a heading of its own such as "Tin's
+read on <business>" (the same text as the plan's "Tin's view" section). Then show what Tin can run
+for them: the plan's "What Tin would run" list in rank order, one line per system (what Tin runs,
+how often, what it needs), with Tin's suggested set marked. Then ask ONE open question, in chat, not
 blocking: "What do you want Tin to take on? Say it in your words; Tin's suggestion is a fine
 answer." Map their answer to the plan's system ids and set up whole systems: when they name one
 workflow that belongs to a system, pick that system, so every workflow in it gets built together
@@ -411,13 +416,13 @@ Then call record_onboarding_picks once with the run_id, the systems (or ["sugges
 control and every connection they decided (connected, or not_now with the reason); it ticks the
 plan for you. Then approve_workflow_run; it refuses until the picks are recorded. Say Tin now
 needs a minute or two to save the schedules and start the first runs. Read the run again after a
-minute or two; when it is done, relay its `tell_the_founder` word for word: it says what now
-runs, what is already there, what to expect, where to watch, and offers to build more. Never make
-the founder ask where to look.
+minute or two; when it is done, its quote is Tin's words on what now runs and what is already
+there, and its relay the facts for yours: what to expect, where to watch, what was left out and
+why, and the offer to build more. Never make the founder ask where to look.
 
 After onboarding: when the founder asks for anything they do by hand, read
 get_workflow_authoring_guide and build it with create_project_workflow (or update one with
-update_project_workflow); relay that result's `tell_the_founder`. When the first result of a run
+update_project_workflow); tell the founder that result's relay. When the first result of a run
 is in, offer once to talk through how Tin can help the business grow: what they have tried, what
 they do by hand, what Tin could add; build what they agree to. list_project_workflows shows what
 runs on a schedule and list_project_runs what ran. Do not poll get_run in a tight loop; a check
@@ -619,6 +624,28 @@ def _first_result_offer(business: str) -> str:
         "Tell me what you have tried and what you still do by hand; I will have Tin build the "
         "rest as workflows."
     )
+
+
+def _founder_words(
+    *, quote: str | None = None, relay: list[str] | str | None = None
+) -> dict[str, Any]:
+    """The founder-facing part of a tool result, in the two fields the agent treats apart.
+
+    `quote` is Tin's own words to the founder: the agent relays them as given, set apart on
+    their own lines, unchanged. `relay` is a list of facts the agent tells the founder in its
+    own words, woven into its reply. `tell_the_founder` is the two joined, kept one release
+    for clients on older instructions; a client that reads quote or relay ignores it.
+    """
+    items = [relay] if isinstance(relay, str) else list(relay or [])
+    items = [item for item in items if item]
+    words: dict[str, Any] = {}
+    if quote:
+        words["quote"] = quote
+    if items:
+        words["relay"] = items
+    if quote or items:
+        words["tell_the_founder"] = "\n\n".join(([quote] if quote else []) + items)
+    return words
 
 
 def _schedule_words(schedule: Any) -> str:
@@ -1104,7 +1131,7 @@ def create_mcp_app(
             raise ToolError("request_conflict: this request ID is already in use") from exc
         except ProjectDeletionPending as exc:
             raise ToolError(f"conflict: {exc}") from exc
-        return {**result, "tell_the_founder": _project_deleted_message(result)}
+        return {**result, **_founder_words(relay=_project_deleted_message(result))}
 
     async def private_service(project_id, tool_name):
         token = await caller()
@@ -1409,8 +1436,9 @@ def create_mcp_app(
                 "check get_run at about three minutes and again at six; relay progress.summary "
                 "each time; past ten minutes tell the founder and read error; wait for status "
                 "needs_input; read the plan at its artifact_path",
-                "relay Tin's view word for word under its own heading (the plan's Tin's view "
-                "section, also get_run's review_summary)",
+                "open with get_run's quote, Tin's view, as given under its own heading (the "
+                "plan's Tin's view section); its relay says the plan is ready and what the "
+                "next minutes hold, in your words",
                 "show the plan's What Tin would run list in rank order, one line per system "
                 "(what runs, how often, what it needs), Tin's suggested set marked; then ask one "
                 "open question in chat: what do you want Tin to take on? their words; Tin's "
@@ -1430,12 +1458,13 @@ def create_mcp_app(
                 "get_integration confirmed, not_now with the reason for the rest",
                 "approve_workflow_run (it refuses until the picks are recorded); say Tin needs "
                 "a minute or two",
-                "read get_run after a minute or two; when it is done, relay its "
-                "tell_the_founder word for word: what runs, what is already there, what to "
-                "expect, the two pages, and the offer to build more",
+                "read get_run after a minute or two; when it is done, its quote is Tin's words "
+                "on what runs and what is already there (relay as given) and its relay the "
+                "facts for your words: what to expect, the two pages, what was left out, and "
+                "the offer to build more",
                 "when the founder asks for more, or after the first result lands and they want "
                 "to talk: read get_workflow_authoring_guide, build with create_project_workflow, "
-                "relay its tell_the_founder",
+                "tell the founder its relay",
             ],
         }
 
@@ -1727,7 +1756,7 @@ def create_mcp_app(
             raise ToolError(str(exc)) from exc
         return {
             **_mcp_project_workflow_view(configured),
-            "tell_the_founder": _project_workflow_message(configured, created=True),
+            **_founder_words(relay=_project_workflow_message(configured, created=True)),
         }
 
     @server.tool()
@@ -1826,7 +1855,7 @@ def create_mcp_app(
             raise ToolError(str(exc)) from exc
         return {
             **_mcp_project_workflow_view(configured),
-            "tell_the_founder": _project_workflow_message(configured, created=False),
+            **_founder_words(relay=_project_workflow_message(configured, created=False)),
         }
 
     @server.tool()
@@ -1930,19 +1959,31 @@ def create_mcp_app(
             raise ToolError(str(exc)) from exc
         return {"id": str(stopped.id), "status": stopped.status.value}
 
-    async def _tell_the_founder_for_run(run: Any) -> dict[str, str]:
-        """The words the agent relays when a run just finished: the onboarding handshake, or
-        one line for any other finished run with the offer to talk."""
-        if getattr(run, "status", None) is not RunStatus.SUCCEEDED:
+    async def _founder_words_for_run(run: Any, review_summary: str | None) -> dict[str, Any]:
+        """What the founder hears about a run: Tin's view to quote while the onboarding plan
+        waits for their pick, the onboarding handshake once it is set up, or one line for
+        any other finished run with the offer to talk."""
+        executor = getattr(run, "executor", None)
+        status = getattr(run, "status", None)
+        if executor == GROWTH_ONBOARDING_KEY and status is RunStatus.NEEDS_INPUT:
+            return _founder_words(
+                quote=review_summary,
+                relay=[
+                    getattr(run, "progress_summary", None)
+                    or "The plan is ready and waits for their pick.",
+                    "The next few minutes are theirs: what Tin takes on, in their words, then "
+                    "the control they keep and any connections. Nothing runs until they have "
+                    "said.",
+                ],
+            )
+        if status is not RunStatus.SUCCEEDED:
             return {}
         try:
             project = await runtime().database.get_project(run.project_id)
         except Exception:  # a fake or partial runtime: the run view stands on its own
             project = None
         business = getattr(project, "name", None) or "your project"
-        if getattr(run, "executor", None) == GROWTH_ONBOARDING_KEY and getattr(
-            run, "artifact_path", None
-        ):
+        if executor == GROWTH_ONBOARDING_KEY and getattr(run, "artifact_path", None):
             try:
                 text = (
                     await runtime().storage.read_canonical_artifact(
@@ -1953,17 +1994,17 @@ def create_mcp_app(
                 ).decode("utf-8", "replace")
             except Exception:  # the report is optional here; the run view stands on its own
                 return {}
-            from tin_lite.growth_onboarding import report_message
+            from tin_lite.growth_onboarding import report_words
 
-            message = report_message(text)
-            return {"tell_the_founder": message} if message else {}
+            words = report_words(text)
+            return _founder_words(quote=words["quote"], relay=words["relay"])
         lands = getattr(run, "artifact_path", None) or "My system"
-        return {
-            "tell_the_founder": (
-                f"{getattr(run, 'workflow_name', 'The run')} finished; the result is in {lands}. "
-                + _first_result_offer(business)
-            )
-        }
+        return _founder_words(
+            relay=[
+                f"{getattr(run, 'workflow_name', 'The run')} finished; the result is in {lands}.",
+                _first_result_offer(business),
+            ]
+        )
 
     @server.tool()
     async def get_run(run_id: str) -> dict[str, Any]:
@@ -1980,6 +2021,7 @@ def create_mcp_app(
         if run is None:
             raise LookupError("run not found")
         await require_project(run.project_id, token, tool_name="get_run")
+        review_summary = await _review_summary(runtime().database, run)
         return {
             "id": str(run.id),
             "project_id": str(run.project_id),
@@ -2003,7 +2045,7 @@ def create_mcp_app(
             "review_decision": run.review_decision,
             "allowed_actions": _run_allowed_actions(run),
             "error": run.error_message,
-            "review_summary": await _review_summary(runtime().database, run),
+            "review_summary": review_summary,
             "content_delivery": await delivery_service(runtime()).status(run),
             "progress": {
                 "step": getattr(run, "progress_step", None),
@@ -2019,7 +2061,7 @@ def create_mcp_app(
             },
             "service": _service_view(),
             "links": _project_links(settings, run.project_id),
-            **await _tell_the_founder_for_run(run),
+            **await _founder_words_for_run(run, review_summary),
             "prerequisite_evidence": getattr(run, "prerequisite_evidence", None),
             **(
                 {"system": await _organic_system_facts(run)}
@@ -2325,12 +2367,17 @@ def create_mcp_app(
             "status": run.status.value,
             "advisories": (run.prerequisite_evidence or {}).get("advisories", []),
             **({"assumed": assumed} if assumed else {}),
-            "tell_the_founder": (
-                (_assumed_line(assumed) if assumed else "")
-                + "Tin is writing your plan now. It reads your site and scores fifteen marketing "
-                "systems; that takes three to six minutes. I will check in at three and six."
-                if workflow.executor == GROWTH_ONBOARDING_KEY
-                else f"Tin started {workflow.title}. I will tell you when the result lands."
+            **_founder_words(
+                relay=(
+                    [
+                        *([_assumed_line(assumed).strip()] if assumed else []),
+                        "Tin is writing your plan now. It reads your site and scores fifteen "
+                        "marketing systems; that takes three to six minutes. I will check in "
+                        "at three and six.",
+                    ]
+                    if workflow.executor == GROWTH_ONBOARDING_KEY
+                    else f"Tin started {workflow.title}. I will tell you when the result lands."
+                )
             ),
         }
 
@@ -2537,7 +2584,8 @@ def create_mcp_app(
         For a content draft (answer page, article, content program draft) `delivery` says how
         the approved draft ships: github_pr opens a pull request, github_commit publishes to the
         default branch now, none keeps it in Tin; `remember` makes it the program's default.
-        Without `delivery` the program's setting applies. Relay tell_the_founder as is.
+        Without `delivery` the program's setting applies. Tell the founder the result's
+        `relay` in your words.
         """
         token = await caller()
         clerk_user_id = token.subject
@@ -2578,7 +2626,7 @@ def create_mcp_app(
                 "project_id": str(approved.project_id),
                 "status": approved.status.value,
                 "review_decision": approved.review_decision,
-                **({"tell_the_founder": delivery_words} if delivery_words else {}),
+                **_founder_words(relay=delivery_words),
             }
         if run.executor == PROJECT_TASK_WORKFLOW_NAME:
             try:
@@ -2638,13 +2686,21 @@ def create_mcp_app(
             "workflow": run.workflow_name,
             "status": run.status.value,
             "review_decision": "approval_signaled",
-            **({"tell_the_founder": delivery_words} if delivery_words else {}),
+            **_founder_words(
+                relay=delivery_words
+                or (
+                    "Tin needs a minute or two to save the schedules and start the first runs."
+                    if run.executor == GROWTH_ONBOARDING_KEY
+                    else None
+                )
+            ),
             "note": (
                 "Recorded durably. Tin picks it up within a minute or two, sometimes after a "
                 "short restart, saves the schedules, starts the first runs and writes its "
                 "report; read the run again after a minute or two rather than re-approving. "
-                "When get_run shows it done, relay its tell_the_founder word for word; it names "
-                "what runs, what is already there, what to expect and where to watch."
+                "When get_run shows it done, its quote is Tin's words on what runs and what is "
+                "already there (relay them as given) and its relay the facts to tell in your "
+                "words: what to expect, where to watch, what was left out."
             ),
             "links": _project_links(settings, run.project_id),
         }
@@ -3234,7 +3290,8 @@ def create_mcp_app(
         """Create a short-lived project-bound provider authorization URL for the human.
 
         Open it in their browser yourself when your shell allows it (open_command), otherwise
-        paste the link; then confirm with get_integration. Relay tell_the_founder as is.
+        paste the link; then confirm with get_integration. Tell the founder the result's
+        `relay` in your words.
         """
         token = await caller()
         clerk_user_id = token.subject
@@ -3251,10 +3308,12 @@ def create_mcp_app(
         return {
             "authorization_url": started.authorization_url,
             "open_command": _open_command(started.authorization_url),
-            "tell_the_founder": (
-                f"I am opening the {provider_key.split('.')[-1].replace('_', ' ')} connection for "
-                f"{project.name if project else 'your project'} in your browser; it takes about a "
-                "minute. Tell me when it says connected."
+            **_founder_words(
+                relay=(
+                    f"I am opening the {provider_key.split('.')[-1].replace('_', ' ')} connection "
+                    f"for {project.name if project else 'your project'} in your browser; it "
+                    "takes about a minute. Tell me when it says connected."
+                )
             ),
         }
 
@@ -3267,7 +3326,7 @@ def create_mcp_app(
 
         providers are Tin integration keys (infra.github, analytics.gsc, workspace.google).
         Open the link for the founder (open_command) or paste it; confirm each with
-        get_integration afterwards. Relay tell_the_founder as is.
+        get_integration afterwards. Tell the founder the result's `relay` in your words.
         """
         token = await caller()
         parsed_project_id = _mcp_uuid(project_id, field="project_id")
@@ -3295,11 +3354,13 @@ def create_mcp_app(
             "url": url,
             "providers": chosen,
             "open_command": _open_command(url),
-            "tell_the_founder": (
-                f"I am opening one page where you connect {listed} for "
-                f"{project.name if project else 'your project'}. Each takes about a minute"
-                + ("; GitHub also asks which repository" if "infra.github" in chosen else "")
-                + ". Tell me when it says connected."
+            **_founder_words(
+                relay=(
+                    f"I am opening one page where you connect {listed} for "
+                    f"{project.name if project else 'your project'}. Each takes about a minute"
+                    + ("; GitHub also asks which repository" if "infra.github" in chosen else "")
+                    + ". Tell me when it says connected."
+                )
             ),
         }
 

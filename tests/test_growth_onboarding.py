@@ -18,6 +18,7 @@ from tin_lite.growth_onboarding import (
     apply_priority,
     chosen_systems,
     founder_message,
+    founder_words,
     picked_actions,
     plan_block,
     plan_connections,
@@ -26,6 +27,7 @@ from tin_lite.growth_onboarding import (
     plan_readiness,
     plan_view,
     render_report,
+    report_words,
     systems_details,
     ui_links,
 )
@@ -358,6 +360,26 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
     assert message.endswith("want to talk through how Tin can help Example grow?")
     assert "expand the scope" not in message and "option" not in message.lower()
 
+    # The same words in the two parts the agent treats apart: Tin's own words to quote (the
+    # win, the roles, what is under way) and the facts to relay in the agent's words.
+    words = founder_words(setup, titles=titles)
+    assert words["quote"].startswith("Example now has a marketing system running: 2 roles")
+    assert words["quote"].endswith(
+        "Already under way: audit ai visibility (first result in about ten minutes)."
+    )
+    assert "In a week" not in words["quote"] and "Two pages" not in words["quote"]
+    assert [item.split(":")[0] for item in words["relay"]] == [
+        "In a week",
+        "Your control",
+        "Two pages are yours",
+        "Waiting",
+        "Left out by your choice",
+        "Tell me anything you do by hand for marketing and I will have Tin build it as a "
+        "workflow; you will see it appear in My system. Once the first result is in, want to "
+        "talk through how Tin can help Example grow?",
+    ]
+    assert message == "\n\n".join([words["quote"], *words["relay"]])
+
     text = render_report(setup, titles=titles)
     assert text.startswith("# Tin is set up: AI visibility\n\n" + message)
     assert "## What runs" in text and "## How drafts ship" in text
@@ -365,7 +387,14 @@ def test_report_opens_with_the_handshake_and_names_what_runs() -> None:
         "Approved drafts open a pull request in example/site under content/blog/{slug}.md" in text
     )
     assert "## Next, for your agent" not in text
-    assert text.rstrip().endswith(f"Plan revision: `{'d' * 40}`.")
+    assert f"Plan revision: `{'d' * 40}`." in text
+    # The report carries the split in a block Tin reads back for get_run.
+    assert report_words(text) == words
+    # A report written before the block carries the handshake as one text; it is the quote.
+    assert report_words("# Tin is set up\n\nOld handshake.\n\n## What runs\n") == {
+        "quote": "Old handshake.",
+        "relay": [],
+    }
 
 
 def test_priority_fills_hours_budget_and_urgency_unless_known() -> None:
@@ -534,6 +563,13 @@ async def test_parent_plans_holds_then_sets_up_the_picks(publication_db, monkeyp
     held = await f.db.get_run(f.run.id)
     assert held.status.value == "needs_input"
     assert held.artifact_path == growth_onboarding.PLAN_PATH
+    # The review explanation is Tin's view and nothing else: the dashboard shows it to the
+    # founder, and the agent quotes it as given. Its own next steps live in get_started.
+    explanation = await f.db.pool.fetchval(
+        "SELECT explanation FROM run_decisions WHERE id = $1 AND kind = 'review'", f.run.id
+    )
+    assert explanation == plan_view(PLAN)
+    assert "record_onboarding_picks" not in explanation
 
     from tin_lite.growth_onboarding_control import ensure_onboarding_approvable
 

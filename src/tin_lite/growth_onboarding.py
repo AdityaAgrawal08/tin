@@ -20,6 +20,7 @@ POLICY = {
 }
 PLAN_PATH = GROWTH_ONBOARDING_PLAN_PATH
 PLAN_BLOCK = "tin-plan"
+WORDS_BLOCK = "tin-words"
 
 PRIORITY_DEFAULTS: dict[str, dict[str, str]] = {
     "main": {"founder_hours": "lots", "budget": "500_to_2000", "urgency": "weeks"},
@@ -710,11 +711,13 @@ def _lands(action: dict[str, Any], delivery: dict[str, Any] | None) -> str:
     return lands
 
 
-def founder_message(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
-    """The handshake the founder's agent relays word for word once Tin is set up.
+def founder_words(setup: dict[str, Any], *, titles: dict[str, str]) -> dict[str, Any]:
+    """What the founder hears once Tin is set up, in the two parts the agent treats apart.
 
-    The win first, then each role as a benefit with its day and where it lands, what is
-    already there, the outlook, the two pages, and the invitation to ask for more.
+    `quote` is Tin's own words, relayed as given: the win, each role as a benefit with its
+    day and where it lands, and what is already under way. `relay` is the facts the agent
+    tells the founder in its own words, one per item: the outlook, the control they kept,
+    the two pages, what was left out and why, and the invitation to ask for more.
     """
     business = str(setup.get("business") or "Your project")
     actions = setup["actions"]
@@ -764,6 +767,9 @@ def founder_message(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
             )
             + "."
         )
+    quote = "\n".join(lines).strip()
+
+    relay: list[str] = []
     outlook = details.get("outlook") or {}
     expect = [
         f"In a week: {outlook['week']}" if outlook.get("week") else "",
@@ -772,39 +778,63 @@ def founder_message(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
     ]
     expect = [item for item in expect if item]
     if expect:
-        lines.append("")
-        lines.append(" ".join(expect))
+        relay.append(" ".join(expect))
     control = setup.get("control")
     if control in CONTROL_OPTIONS:
-        lines.append("")
-        lines.append(f"Your control: {CONTROL_OPTIONS[control]}")
-    lines.append("")
-    lines.append(
+        relay.append(f"Your control: {CONTROL_OPTIONS[control]}")
+    relay.append(
         f"Two pages are yours: My system ({links['my_system']}), every workflow with its runs, "
         f"and Decisions ({links['decisions']}), anything waiting for your yes."
     )
     for a in not_running:
         if a.get("status") == "declined":
             note = f" ({a['note']})" if a.get("note") else ""
-            lines.append(
+            relay.append(
                 f"Left out by your choice: {title(a)} needs {a.get('provider', 'an integration')} "
                 f"you did not connect{note}."
             )
         else:
-            lines.append(f"Waiting: {title(a)}. {a.get('reason') or 'See My system.'}")
-    lines.append("")
-    lines.append(
+            relay.append(f"Waiting: {title(a)}. {a.get('reason') or 'See My system.'}")
+    relay.append(
         "Tell me anything you do by hand for marketing and I will have Tin build it as a "
         "workflow; you will see it appear in My system. Once the first result is in, want to "
         f"talk through how Tin can help {business} grow?"
     )
-    return "\n".join(lines).strip()
+    return {"quote": quote, "relay": relay}
+
+
+def founder_message(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
+    """The handshake as one text, for the written report: the quote, then each relayed fact
+    as a paragraph of its own."""
+    words = founder_words(setup, titles=titles)
+    return "\n\n".join([words["quote"], *words["relay"]]).strip()
 
 
 def report_message(text: str) -> str:
     """The founder message at the top of a written report, up to its first `## ` heading."""
     body = text.split("\n", 1)[1] if text.startswith("# ") else text
     return body.split("\n## ", 1)[0].strip()
+
+
+def report_words(text: str) -> dict[str, Any]:
+    """The quote and relay a written report carries in its `tin-words` block.
+
+    Reports written before the block existed carry the handshake as one text; it comes back
+    as the quote, the way those clients were told to treat it.
+    """
+    match = re.search(r"```" + WORDS_BLOCK + r"\s*\n(.*?)\n```", text, re.S)
+    if match is not None:
+        try:
+            value = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            value = None
+        if isinstance(value, dict) and isinstance(value.get("quote"), str):
+            relay = value.get("relay")
+            return {
+                "quote": value["quote"],
+                "relay": [str(item) for item in relay] if isinstance(relay, list) else [],
+            }
+    return {"quote": report_message(text), "relay": []}
 
 
 def render_report(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
@@ -848,6 +878,13 @@ def render_report(setup: dict[str, Any], *, titles: dict[str, str]) -> str:
                 "pull request."
             )
     lines += ["", f"Plan revision: `{setup['plan_revision']}`.", ""]
+    words = founder_words(setup, titles=titles)
+    lines += [
+        "```" + WORDS_BLOCK,
+        json.dumps({"quote": words["quote"], "relay": words["relay"]}, indent=2),
+        "```",
+        "",
+    ]
     return "\n".join(lines)
 
 

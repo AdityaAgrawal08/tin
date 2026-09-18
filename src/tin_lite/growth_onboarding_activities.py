@@ -314,11 +314,13 @@ class GrowthOnboardingActivities:
             canonical_commit_sha=plan["canonical_commit_sha"],
             artifact_ref=plan["artifact_ref"],
             artifact_path=plan["artifact_path"],
-            summary=(
-                (f"Tin's view. {view} " if view else "")
-                + f"The plan is ready: {len(offered)} systems Tin can run, in "
-                f"{plan['artifact_path']}. Ask the founder in their words what Tin should take "
-                "on, then record it with record_onboarding_picks and approve_workflow_run."
+            # Tin's own words to the founder, and nothing else: the dashboard shows this
+            # explanation to them, and the agent quotes it as given. The plan's system
+            # count is in the progress summary, and the agent's next steps in get_started.
+            summary=view
+            or (
+                f"The plan is ready: {len(offered)} systems Tin can run, in "
+                f"{plan['artifact_path']}."
             ),
         )
 
