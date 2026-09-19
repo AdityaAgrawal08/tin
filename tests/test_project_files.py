@@ -93,3 +93,35 @@ async def test_project_files_are_membership_gated_and_pinned_to_canonical_state(
     assert unsafe.status_code == 422
     assert noncanonical.status_code == 404
     assert inaccessible.status_code == 404
+
+
+def test_a_project_file_that_holds_a_credential_is_refused_before_commit() -> None:
+    """Context the founder hands over is read by every run; a token in it is a leak."""
+    from tin_lite.project_files import credential_findings, normalize_project_file_mutations
+
+    clean = (
+        "# Positioning note\n\nSource: pasted by the founder, 2026-09-18.\n\n"
+        "We sell to agencies; the token of trust is a working reply within a minute. "
+        "Password resets are the top support question.\n"
+    )
+    assert credential_findings(clean) == []
+    assert normalize_project_file_mutations(
+        [{"operation": "upsert", "path": "context/positioning.md", "content": clean}]
+    )
+
+    leaks = {
+        "a private key": "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n",
+        "an AWS access key": "aws key AKIAIOSFODNN7EXAMPLE in the deploy notes",
+        "a GitHub token": "ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8" + " works",
+        "a Slack token": "bot xoxb-1234567890-abcdefghij",
+        "a Stripe or Clerk secret key": "STRIPE=sk_live_" + "A" * 24,
+        "an OpenAI key": "OPENAI_API_KEY=sk-proj-" + "z" * 40,
+        "a Google API key": "AIza" + "S" * 35,
+        "a secret assignment": "client_secret: " + "q" * 32,
+    }
+    for kind, text in leaks.items():
+        assert credential_findings(text) == [kind] or kind in credential_findings(text), kind
+        with pytest.raises(ValueError, match="appears to contain"):
+            normalize_project_file_mutations(
+                [{"operation": "upsert", "path": "context/notes.md", "content": text}]
+            )

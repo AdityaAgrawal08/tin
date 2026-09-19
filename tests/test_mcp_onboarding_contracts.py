@@ -149,6 +149,21 @@ async def test_founder_words_come_apart_as_quote_and_relay(account):
     )
     assert started["relay"][1].startswith("Tin is writing your plan now.")
     assert started["tell_the_founder"] == "\n\n".join(started["relay"])
+    # The plan's minutes are useful: hand over context, connect the systems it leans on.
+    meanwhile = started["meanwhile"]
+    assert meanwhile["context_request"]["path_pattern"] == "context/{slug}.md"
+    assert meanwhile["context_request"]["index_path"] == "wiki/INDEX.md"
+    assert meanwhile["context_request"]["commit"]["name"] == "commit_project_changes"
+    assert "credential" in meanwhile["context_request"]["guard"]
+    assert "plan already running does not see it" in meanwhile["context_request"]["reaches"]
+    assert {need["provider"] for need in meanwhile["access_needs"]} == {
+        "infra.github",
+        "analytics.gsc",
+    }
+    assert all(need["benefit"] and need["permissions"] for need in meanwhile["access_needs"])
+    assert meanwhile["connection_batch"]["name"] == "start_integration_connections"
+    assert started["relay"][2].startswith("While it reads, two things help")
+    assert "GitHub" in started["relay"][2] and "Search Console" in started["relay"][2]
 
     # While the plan waits for a pick, Tin's view is the quote and the state is the relay.
     run_id = UUID(started["id"])

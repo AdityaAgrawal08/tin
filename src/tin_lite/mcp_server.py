@@ -389,11 +389,22 @@ and do not wait for an answer. If they correct you before the plan is done, star
 growth.onboarding again with their values; after the picks, note it for the plan revision. Hours,
 budget and urgency follow from the priority. Start growth.onboarding right away; Tin writes the
 plan. Say the plan
-takes three to six minutes, since Tin reads their site and scores fifteen marketing systems;
-check get_run about three minutes after starting and again at six, and relay its progress summary
-each time rather than saying only "running". Past ten minutes tell the founder, read get_run's
-error and progress, and offer to start again. Tin restarts for a deploy now and then; a run pauses
-for about a minute and continues, and approvals and starts are recorded durably meanwhile. After
+takes three to six minutes, since Tin reads their site and scores fifteen marketing systems.
+While it writes, ask ONE optional question covering both parts of start_workflow's `meanwhile`:
+anything else Tin should know (a positioning note, a customer list, what past campaigns did, a
+doc they keep; pasted, a file you read, or a sentence), and whether to connect the systems in
+its access_needs now, each named with its benefit. Neither blocks anything. For each piece of
+context: read it yourself, refuse anything holding a credential (keys, tokens, passwords, .env;
+Tin refuses the commit too), never open files they did not name, then commit it as
+`context/<slug>.md` with a source line at the top and one line for it in `wiki/INDEX.md`
+(commit_project_changes; list_project_files first for the revision and the current index). Say
+that every run from now on reads it and the plan revision after the picks will; the plan already
+running does not, so offer a restart only when it changes the picture. For connections they
+allow, run the connection flow from part 2 now; a connection made during the wait is live at
+setup. Check get_run about three minutes after starting and again at six, and relay its progress
+summary each time rather than saying only "running". Past ten minutes tell the founder, read
+get_run's error and progress, and offer to start again. Tin restarts for a deploy now and then; a
+run pauses for about a minute and continues, and approvals and starts are recorded durably. After
 any action, wait a minute before reading the run; if get_run's service.uptime_seconds is under
 120, say Tin just restarted and read once more; call a run stuck only after ten minutes without
 progress.updated_at moving. Speak of a run in get_run's status_label words (queued, working,
@@ -639,6 +650,17 @@ def _first_result_offer(business: str) -> str:
         "Tell me what you have tried and what you still do by hand; I will have Tin build the "
         "rest as workflows."
     )
+
+
+def _join_names(needs: list[dict[str, Any]]) -> str:
+    """'GitHub or Search Console' from access needs, for one spoken sentence."""
+    names = [str(need.get("name") or need.get("provider") or "") for need in needs]
+    names = [name for name in names if name]
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " or " + names[-1]
 
 
 def _founder_words(
@@ -1467,6 +1489,11 @@ def create_mcp_app(
                 "plan takes three to six minutes, then start_workflow(project_id, "
                 "workflow_id=growth.onboarding, inputs=...) with your guessed priority and "
                 "outcome (defaults side and signups)",
+                "while the plan is written, ask one optional question from start_workflow's "
+                "meanwhile: any other context (docs, comments; you read named files, refuse "
+                "credentials, commit as context/<slug>.md plus a wiki/INDEX.md line with "
+                "commit_project_changes) and whether to connect its access_needs now; run the "
+                "connection flow for what they allow",
                 "check get_run at about three minutes and again at six; relay progress.summary "
                 "each time; past ten minutes tell the founder and read error; wait for status "
                 "needs_input; read the plan at its artifact_path",
@@ -2413,6 +2440,9 @@ def create_mcp_app(
             WorkflowInputError,
         ) as exc:
             raise ToolError(str(exc)) from exc
+        meanwhile: dict[str, Any] = {}
+        if workflow.executor == GROWTH_ONBOARDING_KEY:
+            meanwhile = await _while_the_plan_is_written(parsed_project_id)
         return {
             "id": str(run.id),
             "project_id": str(run.project_id),
@@ -2421,6 +2451,7 @@ def create_mcp_app(
             "status": run.status.value,
             "advisories": (run.prerequisite_evidence or {}).get("advisories", []),
             **({"assumed": assumed} if assumed else {}),
+            **({"meanwhile": meanwhile} if meanwhile else {}),
             **_founder_words(
                 relay=(
                     [
@@ -2428,10 +2459,81 @@ def create_mcp_app(
                         "Tin is writing your plan now. It reads your site and scores fifteen "
                         "marketing systems; that takes three to six minutes. I will check in "
                         "at three and six.",
+                        "While it reads, two things help and neither is required: any "
+                        "document or comment Tin should know (positioning, a customer list, "
+                        "what past campaigns did), which I save to the project so every run "
+                        "reads it; and connecting "
+                        + (
+                            _join_names(meanwhile.get("access_needs") or [])
+                            or "GitHub or Search Console"
+                        )
+                        + " now, so the first setup can use them.",
                     ]
                     if workflow.executor == GROWTH_ONBOARDING_KEY
                     else f"Tin started {workflow.title}. I will tell you when the result lands."
                 )
+            ),
+        }
+
+    async def _while_the_plan_is_written(project_id: UUID) -> dict[str, Any]:
+        """What the founder can usefully do during the plan's minutes: hand over context
+        documents and comments, and connect the systems the plan will lean on.
+
+        Context lands as project files, so the running plan does not see it (its checkout is
+        taken at launch); the plan revision after the picks and every later run do. A
+        connection made now is live at setup, which is what turns a left-out schedule into a
+        running one.
+        """
+        try:
+            experience = await onboarding_experience(
+                database=runtime().database,
+                storage=runtime().storage,
+                settings=settings,
+                project_id=project_id,
+            )
+        except Exception:  # a fake or partial runtime: the start result stands on its own
+            experience = {}
+        needs = [
+            need
+            for need in experience.get("access_needs") or []
+            if need.get("status") != "connected" and need.get("decision") != "declined"
+        ]
+        return {
+            "context_request": {
+                "question": (
+                    "Is there anything else Tin should know: a positioning note, a customer "
+                    "list, what past campaigns did, a doc you keep? Paste it, point me at a "
+                    "file, or say it in a sentence."
+                ),
+                "accepts": ["pasted text", "a file the agent reads", "a comment in chat"],
+                "path_pattern": "context/{slug}.md",
+                "index_path": "wiki/INDEX.md",
+                "commit": {
+                    "name": "commit_project_changes",
+                    "arguments": {"project_id": str(project_id)},
+                    "note": (
+                        "One upsert per item under context/, a source line at the top of "
+                        "each, plus wiki/INDEX.md with one line per item so the plan and "
+                        "project memory find them. Read list_project_files first for "
+                        "expected_revision and the current INDEX text."
+                    ),
+                },
+                "guard": (
+                    "Refuse any file that holds a credential (keys, tokens, passwords, .env); "
+                    "Tin refuses the commit too. Never read a founder's files they did not "
+                    "name."
+                ),
+                "reaches": (
+                    "Every run after the commit, and the plan revision after the picks. The "
+                    "plan already running does not see it; offer a restart only when the "
+                    "material changes the picture."
+                ),
+            },
+            "access_needs": needs,
+            **(
+                {"connection_batch": experience["connection_batch"]}
+                if experience.get("connection_batch")
+                else {}
             ),
         }
 

@@ -14,6 +14,20 @@ Project membership is checked before these fields are assembled.
 | `incomplete_setup` | Surface failed or missing setup items with their reason and next action. Do not bury these in an otherwise successful handoff. |
 | `setup_status` | Distinguish work not started, work in progress, selection, complete setup, partial setup, and unknown legacy state. A completed orchestration run can still have partial setup. |
 
+`start_workflow` for `growth.onboarding` adds `meanwhile`: what the founder can usefully
+do during the plan's three to six minutes. `context_request` asks for any other context
+(a positioning note, a customer list, what past campaigns did, a doc they keep) and says
+where it goes: one project file per item under `context/`, a source line at the top, one
+line per item in `wiki/INDEX.md`, committed through `commit_project_changes`. The agent
+reads only files the founder named and refuses any that hold a credential; the commit path
+refuses them too (`credential_findings` in `project_files.py`: private keys, cloud and
+provider tokens, and key/value secret assignments). Context committed this way reaches
+every later run and the plan revision after the picks; the plan already running took its
+checkout at launch and does not see it, so a restart is offered only when the material
+changes the picture. `meanwhile.access_needs` lists the unconnected, undeclined providers
+with their benefits, and `connection_batch` the one-page call, so the same question can
+offer GitHub and Search Console; a connection made during the wait is live at setup.
+
 `connection_batch` supplies a ready-to-call `start_integration_connections` request
 for relevant, unconnected providers that have not been declined. It is a proposal,
 not authorization. Unknown repository details should prompt discovery when GitHub

@@ -208,6 +208,10 @@ def test_server_instructions_open_with_the_offer_and_the_one_message_rule() -> N
     assert "Never quote a relay item, and never paraphrase a quote." in SERVER_INSTRUCTIONS
     assert "`tell_the_founder` is the two joined for older clients" in SERVER_INSTRUCTIONS
     assert "word for word" not in SERVER_INSTRUCTIONS
+    # The plan's minutes: one optional question for context and connections.
+    assert "start_workflow's `meanwhile`" in SERVER_INSTRUCTIONS
+    assert "`context/<slug>.md`" in SERVER_INSTRUCTIONS
+    assert "never open files they did not name" in SERVER_INSTRUCTIONS
     assert "Guess how the founder sees the project" in SERVER_INSTRUCTIONS
     assert "set up whole systems" in SERVER_INSTRUCTIONS
     assert "default to side and signups" in SERVER_INSTRUCTIONS
