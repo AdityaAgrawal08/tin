@@ -35,6 +35,13 @@ would make the selected work useful. Mailbox access is offered for selected work
 that require it, rather than requested by default. `measurement_needs` identifies
 missing analytics context without pretending a data source has been connected.
 
+The resulting `/connect?project=…&providers=…` link opens only the requested services,
+even before the first saved workflow unlocks the dashboard. Its project-bound selection
+survives sign-in, OAuth and resource selection in the same tab. A callback in a new tab
+can finish its own connection. The rest of an empty project's dashboard stays locked;
+Back to setup closes the connection view. GitHub and Search Console count as ready only
+after a repository or property is selected.
+
 Reports currently arrive inside Tin's Files and drafts in Decisions. The only
 supported result destination is `tin`; there are no email or Slack result notifications
 in this contract. A connected mailbox does not enable audit notifications. Individual
@@ -46,13 +53,19 @@ The planner receives workflow input schemas, including enum and length constrain
 Before presenting the plan, Tin checks proposed inputs and schedule shapes. Approval
 validates selected workflows again, before sealing the plan or creating schedules.
 An invalid selection returns `invalid_plan`; the plan can be corrected and approved
-again. Valid approval receipts remain immutable and replayable.
+again. Malformed machine-plan fields remain readable through `get_run`, with an
+`invalid_plan` issue instead of an exception. Valid approval receipts remain immutable
+and replayable.
 
 Setup still attempts independently valid actions if availability changes after approval.
 Its durable receipt and report distinguish partial setup, blocked first admissions and
 delivery configuration failures. `get_run` also reconciles those receipts against saved
 schedule state and the current first-run projections. It does not start or retry work.
 Use these live facts over an older report when status has changed.
+If a saved workflow is changed to On demand, its handoff has no schedule or next run;
+without a first run, its status is `on_demand`. Paused or removed configurations have
+no next run and are reported in `incomplete_setup`. Historical receipt times are never
+used as a substitute for current schedule state.
 
 Approval is not website publication. Approved content remains in Tin unless repository
 delivery is configured. GitHub delivery opens an unmerged pull request; connecting an

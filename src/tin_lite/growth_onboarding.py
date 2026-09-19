@@ -613,10 +613,17 @@ def picked_actions(block: dict[str, Any], systems: list[str]) -> list[dict[str, 
     for item_system in block.get("systems", []):
         if not isinstance(item_system, dict) or item_system.get("id") not in systems:
             continue
-        for item in item_system.get("workflows", []) or []:
+        workflows = item_system.get("workflows")
+        if not isinstance(workflows, list):
+            continue
+        for item in workflows:
             if not isinstance(item, dict) or not isinstance(item.get("key"), str):
                 continue
             weekdays = item.get("weekdays") or ([item["weekday"]] if item.get("weekday") else [])
+            # Model-authored plans remain readable even when a field has the wrong shape.
+            # The approval validator reports these rows instead of attempting setup.
+            if not isinstance(weekdays, list) or not all(isinstance(day, str) for day in weekdays):
+                continue
             signature = (
                 item["key"],
                 str(item.get("mode", "once")),

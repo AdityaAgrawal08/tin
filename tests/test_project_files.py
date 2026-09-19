@@ -125,3 +125,18 @@ def test_a_project_file_that_holds_a_credential_is_refused_before_commit() -> No
             normalize_project_file_mutations(
                 [{"operation": "upsert", "path": "context/notes.md", "content": text}]
             )
+
+
+@pytest.mark.parametrize("key", ["password", "access_token", "client_secret", "api-key"])
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_quoted_secret_assignments_are_refused_without_echoing_the_value(key, quote):
+    from tin_lite.project_files import credential_findings, normalize_project_file_mutations
+
+    value = "synthetic.credential.value-123456789"
+    text = f"{{{quote}{key}{quote}: {quote}{value}{quote}}}"
+    assert "a secret assignment" in credential_findings(text)
+    with pytest.raises(ValueError, match="appears to contain") as error:
+        normalize_project_file_mutations(
+            [{"operation": "upsert", "path": "context/settings.md", "content": text}]
+        )
+    assert value not in str(error.value)

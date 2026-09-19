@@ -1,6 +1,7 @@
 """Onboarding handoffs use project facts rather than optimistic completion prose."""
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -116,6 +117,101 @@ async def test_invalid_enum_and_schedule_are_not_silently_changed():
         timezone="not/a/timezone",
     )
     assert issues[0]["code"] == "invalid_schedule"
+
+
+@pytest.mark.parametrize(
+    "workflows",
+    [
+        None,
+        42,
+        "brief",
+        {"key": "project.weekly_brief"},
+        [None],
+        [{"key": "project.weekly_brief", "mode": "weekly", "weekdays": [{"day": "friday"}]}],
+        [{"key": "project.weekly_brief", "inputs": "private input"}],
+    ],
+)
+async def test_malformed_plan_remains_readable_and_cannot_be_approved(
+    publication_db, monkeypatch, workflows
+):
+    block = {"systems": [{"id": "progress", "workflows": workflows}]}
+    text = (
+        "# Plan\n## What Tin would run\n- [ ] progress **Progress**\n"
+        "## Control\n- [ ] control: review_in_tin\n```tin-plan\n" + json.dumps(block) + "\n```"
+    )
+    h = await harness(publication_db, monkeypatch, plan=text)
+    await call(h, "record_onboarding_picks", **picks_args(h, systems=["progress"], connections=[]))
+    view = await call(h, "get_run", run_id=str(h.run.id))
+    assert view["incomplete_setup"][0]["code"] == "invalid_plan"
+    assert "private input" not in str(view["incomplete_setup"])
+    assert "invalid_plan" in await refused(h, "approve_workflow_run", run_id=str(h.run.id))
+    h.handle.signal.assert_not_called()
+    assert await h.db.get_effect(f"onboarding:{h.run.id}:approved_plan") is None
+    assert await h.db.list_project_workflows(project_id=h.run.project_id) == []
+
+
+@pytest.mark.parametrize("current", ["on_demand", "paused", "removed", "rescheduled"])
+async def test_handoff_never_resurrects_a_historical_schedule(current):
+    db, project_id, schedule_id = db_fixture(), uuid4(), uuid4()
+    old_schedule = {
+        "cadence": "weekly",
+        "weekdays": ["friday"],
+        "local_time": "09:00",
+        "timezone": "UTC",
+    }
+    new_schedule = {**old_schedule, "weekdays": ["monday"]}
+    next_run = datetime(2026, 10, 5, 9, tzinfo=UTC) if current == "rescheduled" else None
+    if current != "removed":
+        db.list_project_workflows.return_value = [
+            SimpleNamespace(
+                id=schedule_id,
+                status="paused" if current == "paused" else "active",
+                schedule=None if current == "on_demand" else new_schedule,
+                next_run_at=next_run,
+            )
+        ]
+    db.get_effect.return_value = SimpleNamespace(
+        status="completed",
+        result={
+            "actions": [
+                {
+                    "system": "progress",
+                    "key": "project.weekly_brief",
+                    "mode": "weekly",
+                    "status": "scheduled",
+                    "project_workflow_id": str(schedule_id),
+                    "schedule": old_schedule,
+                    "next_run_at": "2026-09-25T09:00:00+00:00",
+                }
+            ]
+        },
+    )
+    view = await onboarding_experience(
+        database=db,
+        storage=None,
+        settings=SETTINGS,
+        project_id=project_id,
+        run=run_fixture(project_id),
+    )
+    deliverable = view["first_deliverables"][0]
+    assert deliverable["schedule"] == (
+        None if current in {"on_demand", "removed"} else new_schedule
+    )
+    assert deliverable["next_run_at"] == (next_run.isoformat() if next_run else None)
+    assert (
+        deliverable["status"]
+        == {
+            "on_demand": "on_demand",
+            "paused": "schedule_inactive",
+            "removed": "schedule_inactive",
+            "rescheduled": "scheduled",
+        }[current]
+    )
+    if current in {"paused", "removed"}:
+        assert view["setup_status"] == "partial"
+        assert any(i["code"] == "schedule_inactive" for i in view["incomplete_setup"])
+    elif current == "on_demand":
+        assert deliverable["next_action"] == "Start the saved workflow when you need a result"
 
 
 async def test_setup_reconciles_schedules_children_and_actual_result_links():

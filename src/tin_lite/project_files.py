@@ -47,7 +47,7 @@ _CREDENTIAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "a secret assignment",
         re.compile(
             r"(?i)\b(?:api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|"
-            r"auth[_-]?token|password|passwd)\b\s*[:=]\s*['\"]?[A-Za-z0-9_\-/+=]{16,}"
+            r"auth[_-]?token|password|passwd)\b['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9_.\-/+=]{16,}"
         ),
     ),
 )
