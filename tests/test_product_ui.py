@@ -592,8 +592,21 @@ def test_product_ui_assets_are_packaged_beside_the_application() -> None:
     )
     assert 'projectAccess: "loading"' in script
     assert "if (!hasProject)" in script
-    assert 'state.projectAccess = "ready"' in script
     assert ".nav-item:disabled" in stylesheet
+    # Browser sign-ups: a project with no workflow yet is locked behind the coding-agent page.
+    assert 'data-browser-lock-enabled="{{BROWSER_LOCK_ENABLED}}"' in index
+    assert (
+        '"{{BROWSER_LOCK_ENABLED}}": str(getattr(settings, "browser_lock_enabled", True)).lower()'
+        in api_source
+    )
+    assert "state.projectAccess = BROWSER_LOCK_ENABLED && !projectWorkflows.length" in script
+    assert '!projectWorkflows.length ? "locked" : "ready"' in script
+    assert 'if (state.projectAccess === "locked") {\n    renderLockPage();' in script
+    assert 'agentRail.hidden = state.projectAccess === "locked"' in script
+    assert "Set up Tin from your coding agent" in script
+    assert "Browser setup is not available yet." in script
+    assert 'api("/api/events/lock-page", {' in script
+    assert ".lock-page-line" in stylesheet
     # State construction calls viewFromLocation(), which reads this constant synchronously.
     assert script.index("const ALLOWED_VIEWS") < script.index("const state")
     assert index.index('data-view="workflows"') < index.index('data-view="chat"')
@@ -799,6 +812,7 @@ async def test_rendered_shell_assets_are_served_by_fastapi():
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
         landing = await client.get("/")
+        assert 'data-browser-lock-enabled="true"' in landing.text
         paths = set(re.findall(r'(?:src|href)="(/assets/[^\"]+)"', landing.text))
         assert any("code-workflow-setup.js" in path for path in paths)
         assert any("code-workflow-setup.css" in path for path in paths)
