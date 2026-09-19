@@ -46,6 +46,9 @@ const copyProjectInvite = document.querySelector("#copy-project-invite");
 const RUNNING_STATES = new Set(["pending", "running"]);
 const ACTIVE_TASK_STATES = new Set(["pending", "running", "needs_input", "paused"]);
 const BILLING_ENABLED = document.documentElement.dataset.billingEnabled === "true";
+// Browser sign-ups see a locked dashboard until their coding agent sets up the first
+// workflow. Server setting TIN_LITE_BROWSER_LOCK_ENABLED; unlocks on the next reload.
+const BROWSER_LOCK_ENABLED = document.documentElement.dataset.browserLockEnabled === "true";
 // Server-owned addresses: changing the dashboard must not move MCP's OAuth resource.
 const APP_URL = configuredOrigin(document.documentElement.dataset.appUrl);
 const MCP_URL = document.documentElement.dataset.mcpUrl?.startsWith("http")
@@ -224,6 +227,8 @@ const state = {
   activityLoading: false,
   decisionId: null,
   agentTab: "claude",
+  // The lock page starts on Codex like the website hero; a click moves both surfaces.
+  lockTab: null,
   integrationFilter: "all",
   integrationSearch: "",
   expandedIntegration: null,
@@ -1103,6 +1108,7 @@ function agentCommandFor(tab) {
 }
 
 function updateAgentRail() {
+  if (agentRail) agentRail.hidden = state.projectAccess === "locked";
   if (!agentCommand || !agentLastUsed) return;
   agentCommand.textContent = agentCommandFor(state.agentTab);
   const usedAt = state.systemSummary?.last_mcp_used_at;
@@ -1114,6 +1120,70 @@ function updateAgentRail() {
   agentRail?.querySelectorAll("[data-agent-tab]").forEach((button) => {
     button.setAttribute("aria-selected", String(button.dataset.agentTab === state.agentTab));
   });
+}
+
+// The locked dashboard. One install line per agent, no comment lines: the sign-in opens
+// by itself and the rail block carries the longer version once the project unlocks.
+const LOCK_PAGE_TABS = [
+  { tab: "codex", label: "Codex" },
+  { tab: "claude", label: "Claude Code" },
+  { tab: "api", label: "API" },
+];
+
+function lockPageLine(tab) {
+  if (tab === "api") return { prompt: "GET", command: `${new URL(MCP_URL).origin}/api/workflows?project_id={project_id}` };
+  return { prompt: "$", command: agentCommandFor(tab).split("\n")[0] };
+}
+
+function renderLockPage() {
+  const tab = LOCK_PAGE_TABS.some((item) => item.tab === state.lockTab) ? state.lockTab : "codex";
+  const line = lockPageLine(tab);
+  main.innerHTML = `
+    <section class="lock-page" aria-labelledby="lock-page-title">
+      <div class="lock-page-column">
+        <h1 id="lock-page-title">Set up Tin from your coding agent</h1>
+        <p>Your coding agent already knows your repo and how you write. Connect Tin, and it will pick the workflows that fit and get the first ones running for you in a few minutes.</p>
+        <p><strong>Browser setup is not available yet.</strong></p>
+        <div class="lock-page-install">
+          <div class="lock-page-tabs" role="tablist" aria-label="Coding agent">
+            ${LOCK_PAGE_TABS.map((item) => `<button type="button" role="tab" data-lock-tab="${item.tab}" aria-selected="${String(item.tab === tab)}">${item.label}</button>`).join("")}
+          </div>
+          <div class="lock-page-line">
+            <span aria-hidden="true">${escapeHtml(line.prompt)}</span>
+            <code id="lock-page-command">${escapeHtml(line.command)}</code>
+            <button type="button" id="copy-lock-command" aria-label="Copy">
+              <svg aria-hidden="true" viewBox="0 0 16 16"><rect x="5" y="5" width="9" height="9" rx="1.5" /><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  main.querySelectorAll("[data-lock-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.lockTab = button.dataset.lockTab;
+      state.agentTab = button.dataset.lockTab;
+      renderLockPage();
+      updateAgentRail();
+    });
+  });
+  main.querySelector("#copy-lock-command").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(line.command);
+    } catch (_error) {
+      showToast("Copy did not work. Select the command and copy it from here.");
+      return;
+    }
+    showToast(tab === "api" ? "Copied." : `Copied. Run it, then ask your coding agent: “${AGENT_PROMPT}”`);
+    recordLockPageEvent("install_copied", tab);
+  });
+}
+
+function recordLockPageEvent(action, agent = null) {
+  if (!state.project) return;
+  api("/api/events/lock-page", {
+    method: "POST",
+    body: JSON.stringify({ action, agent, project_id: state.project.id }),
+  }).catch(() => {});
 }
 
 function navigate(view) {
@@ -1319,6 +1389,10 @@ function render() {
     if (active && item.parentElement.scrollWidth > item.parentElement.clientWidth) item.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
   updateRail();
+  if (state.projectAccess === "locked") {
+    renderLockPage();
+    return;
+  }
   if (!hasProject) return;
   if (state.view === "chat") renderChat();
   if (state.view === "workflows" && !document.querySelector(".system-config-form")) renderWorkflows();
@@ -6031,11 +6105,15 @@ async function loadProject(project, { announce = false } = {}) {
     state.messages = messages.map(chatTurnFromMessage);
     state.integrations = integrations;
     state.activityHasMore = activity.length === 100;
-    state.projectAccess = "ready";
+    state.projectAccess = BROWSER_LOCK_ENABLED && !projectWorkflows.length ? "locked" : "ready";
     state.billing = BILLING_ENABLED ? await api(`/api/projects/${projectId}/billing`).catch(() => null) : null;
     if (generation !== state.projectGeneration || state.project?.id !== project.id) return false;
     renderProjectMenu();
     render();
+    if (state.projectAccess === "locked") {
+      recordLockPageEvent("viewed");
+      return true;
+    }
     schedulePolling();
     if (decisionLoadError) showToast("Decisions could not load. Refresh to try again.");
     if (announce) showToast(`Switched to ${project.name}.`);

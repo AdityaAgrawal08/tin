@@ -8553,3 +8553,156 @@ html[data-theme="dark"] .integration-badge.is-monochrome::before {
     padding-top: 20px;
   }
 }
+
+/* Locked dashboard: a browser sign-up whose project has no workflow yet. The rail is
+   dimmed by .nav-item:disabled; the main pane makes the case for the coding agent.
+   Source of truth: Paper board "LOCK-A · Browser sign-up · The hero, indoors". */
+.lock-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 40px 40px 80px;
+}
+
+.lock-page-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 760px;
+}
+
+.lock-page h1 {
+  max-width: 560px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 32px;
+  text-align: center;
+}
+
+.lock-page p {
+  max-width: 600px;
+  margin: 10px 0 0;
+  color: var(--ink-secondary);
+  font-size: 15px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.lock-page p strong {
+  font-weight: 700;
+}
+
+.lock-page-install {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  margin-top: 36px;
+}
+
+.lock-page-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  align-self: flex-start;
+  padding: 4px;
+  background: var(--paper-well);
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-pill);
+}
+
+.lock-page-tabs button {
+  min-height: 36px;
+  padding: 0 18px;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  color: var(--ink-secondary);
+  font-size: 14px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.lock-page-tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--paper-card);
+  font-weight: 700;
+}
+
+.lock-page-line {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 0 20px 0 24px;
+  background: #141210;
+  border-radius: var(--radius-pill);
+  color: #f6f1e7;
+  color-scheme: dark;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 18px;
+}
+
+.lock-page-line > span:first-child {
+  flex: 0 0 auto;
+  color: #857c6f;
+}
+
+.lock-page-line code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: inherit;
+  /* Geist Mono joins "--" into one glyph and swallows the space before it. */
+  font-variant-ligatures: none;
+}
+
+/* Dark theme: the page ground is already coal, so the line needs its own edge. */
+html[data-theme="dark"] .lock-page-line {
+  background: var(--well-dark);
+  border: 1px solid rgb(var(--on-dark-rgb) / 10%);
+}
+
+.lock-page-line button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  color: #857c6f;
+  cursor: pointer;
+}
+
+.lock-page-line button:hover {
+  color: #f6f1e7;
+}
+
+.lock-page-line button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5px;
+}
+
+@media (max-width: 900px) {
+  .lock-page {
+    min-height: calc(100svh - var(--top-menu-height));
+    padding: 32px 18px 64px;
+  }
+
+  .lock-page-line {
+    padding: 14px 16px 14px 20px;
+    border-radius: 20px;
+  }
+}
