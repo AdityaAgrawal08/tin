@@ -605,7 +605,9 @@ def test_product_ui_assets_are_packaged_beside_the_application() -> None:
     )
     assert "state.projectAccess = BROWSER_LOCK_ENABLED && !projectWorkflows.length" in script
     assert '!projectWorkflows.length ? "locked" : "ready"' in script
-    assert 'if (state.projectAccess === "locked") {\n    renderLockPage();' in script
+    # Lock routing, including the agent connection exception, is exercised in Chromium
+    # by web/lock-page.browser.test.js rather than matching one rendering branch here.
+    assert "function renderLockPage()" in script
     assert 'agentRail.hidden = state.projectAccess === "locked"' in script
     assert "Set up Tin from your coding agent" in script
     assert "Browser setup is not available yet." in script
