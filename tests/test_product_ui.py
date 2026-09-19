@@ -384,7 +384,10 @@ def test_product_ui_assets_are_packaged_beside_the_application() -> None:
     assert "clearIntegrationCallbackUrl(error.detail.project_id)" in script
     assert "function clearIntegrationCallbackUrl(projectId = null)" in script
     assert 'if (projectId) callbackUrl.searchParams.set("project", projectId)' in script
-    assert "await bootstrap(invitedProject?.id || connection?.projectId || null)" in script
+    assert (
+        "await bootstrap(invitedProject?.id || integrationReturn?.projectId || null, "
+        "integrationReturn)" in script
+    )
     assert (
         "if (connection && connection.projectId === state.project?.id) "
         "await promptForIntegrationResource(connection.provider)" in script
@@ -588,7 +591,8 @@ def test_product_ui_assets_are_packaged_beside_the_application() -> None:
     assert "function openProjectCreate(" in script
     assert "can_create_project_in_workspace" in script
     assert script.index("await acceptPendingInvitation()") < script.index(
-        "await bootstrap(invitedProject?.id || connection?.projectId || null)"
+        "await bootstrap(invitedProject?.id || integrationReturn?.projectId || null, "
+        "integrationReturn)"
     )
     assert 'projectAccess: "loading"' in script
     assert "if (!hasProject)" in script
