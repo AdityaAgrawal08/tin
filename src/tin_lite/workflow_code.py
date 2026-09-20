@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from tin_lite.project_files import safe_project_file_path
 from tin_lite.workflow_packages import relative_path, validate_package_input_schema
+from tin_lite.workflow_services import ServiceBinding, service_bindings
 
 EXECUTOR = "workflow.code"
 RUNTIME = "python3.12.8-stdlib-v1"
@@ -76,7 +77,7 @@ class CodeSpec:
     media_type: str
     max_bytes: int
     model_routes: tuple[CodeModelRoute, ...] = ()
-    services: tuple = ()
+    services: tuple[ServiceBinding, ...] = ()
 
     @property
     def policy(self):
@@ -161,72 +162,6 @@ def validate_code_definition(definition) -> CodeSpec:
         model_routes(code.get("model_routes", {})),
         service_bindings(code.get("services", {}), definition.get("integration_requirements")),
     )
-
-
-@dataclass(frozen=True)
-class CodeService:
-    name: str
-    provider_key: str
-    capabilities: tuple[str, ...]
-    max_calls: int
-    max_response_bytes: int
-
-
-def service_bindings(value, requirements):
-    from tin_lite.integrations import parse_integration_requirements
-    from tin_lite.project_connections import CUSTOM_KEY
-
-    allowed = {
-        "analytics.gsc": {"sites.list", "search_analytics.read"},
-        "workspace.google": {"gmail.messages.read", "calendar.events.read"},
-        "infra.github": {"repositories.list"},
-    }
-    parsed = {r.provider_key: r for r in parse_integration_requirements(requirements)}
-    if not isinstance(value, dict) or len(value) > 4:
-        raise ValueError("declare at most four code services")
-    result = []
-    for name, entry in value.items():
-        if (
-            not isinstance(name, str)
-            or not re.fullmatch(r"[a-z][a-z0-9_]{0,47}", name)
-            or not isinstance(entry, dict)
-            or set(entry) != {"provider_key", "max_calls", "max_response_bytes"}
-        ):
-            raise ValueError("invalid code service binding")
-        provider = entry["provider_key"]
-        requirement = parsed.get(provider) if isinstance(provider, str) else None
-        if (
-            requirement is None
-            or not requirement.required
-            or not set(requirement.capabilities)
-            <= (
-                {"http.read", "http.write"}
-                if CUSTOM_KEY.fullmatch(provider)
-                else allowed.get(provider, set())
-            )
-        ):
-            raise ValueError("service needs explicit supported required integration capabilities")
-        for field, low, high in (("max_calls", 1, 8), ("max_response_bytes", 1024, 64_000)):
-            if type(entry[field]) is not int or not low <= entry[field] <= high:
-                raise ValueError(f"service {field} must be {low}-{high}")
-        result.append(
-            CodeService(
-                name,
-                provider,
-                requirement.capabilities,
-                entry["max_calls"],
-                entry["max_response_bytes"],
-            )
-        )
-    if (
-        {s.provider_key for s in result} != set(parsed)
-        or len({s.provider_key for s in result}) != len(result)
-        or sum(s.max_calls for s in result) > 8
-    ):
-        raise ValueError(
-            "each dependency needs one binding; at most eight service calls are allowed"
-        )
-    return tuple(result)
 
 
 def validate_code_resources(spec, files):

@@ -78,6 +78,8 @@ async def test_run_tools_expose_only_declared_run_bound_capabilities() -> None:
         "list_calendar_events",
         "record_test_identity_status",
         "search_sms",
+        "request_service",
+        "call_service",
     }
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(

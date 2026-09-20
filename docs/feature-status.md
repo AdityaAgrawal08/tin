@@ -34,7 +34,7 @@ does not remove this separate private-execution gate.
 | Executor | Implemented | Not included |
 | --- | --- | --- |
 | `workflow.code` | Bounded Python, typed inputs, one durable text report/artifact, optional managed model calls, project API connections, and eligible daily/weekly schedules. | Arbitrary runtimes, raw secrets or direct SDK credentials in author code, recursive workflow starts, or delegation to a procedure. |
-| Private `codex.procedure` | On-demand isolated procedures producing a bounded project artifact or an unmerged PR through the connected GitHub gateway. | Private procedure schedules, browser/Studio profiles, or a general one-command skill import. |
+| Private `codex.procedure` | On-demand isolated procedures with declared project API connections, producing a bounded project artifact or an unmerged PR through the connected GitHub gateway. | Private procedure schedules, browser/Studio profiles, or a general one-command skill import. |
 
 Code-only bounded execution uses no Tin credits. Managed model steps use hosted credits;
 custom API requests use the connected provider account, which may charge separately. The

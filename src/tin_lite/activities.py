@@ -2932,7 +2932,7 @@ class TinActivities:
                     from tin_lite.payment_card_guard import card_secrets
 
                     redact += card_secrets(payment_card)
-                if workspace_requirement is not None:
+                if workspace_requirement is not None and not procedure.services:
                     workspace_connection = await self._connected_workspace(
                         project_id=run.project_id,
                         capabilities=workspace_requirement.capabilities,
@@ -2951,6 +2951,24 @@ class TinActivities:
                         external_account_id=workspace_connection.external_account_id or "",
                         provider_key=GOOGLE_WORKSPACE_PROVIDER,
                         capabilities=granted,
+                        ttl_seconds=procedure.sandbox.timeout_seconds + 60,
+                    )
+                    run_tools_url = (
+                        f"{self._settings.switchboard_public_url.rstrip('/')}"
+                        "/internal/run-tools/mcp"
+                    )
+                if procedure.services:
+                    from tin_lite.procedure_services import SERVICE_CAPABILITY, SERVICE_PROVIDER
+
+                    run_tools_grant = secrets.token_urlsafe(32)
+                    await self._db.create_run_tool_grant(
+                        run_id=run_id,
+                        sandbox_id=sandbox_id,
+                        token=run_tools_grant,
+                        connection_id=None,
+                        external_account_id="",
+                        provider_key=SERVICE_PROVIDER,
+                        capabilities=(SERVICE_CAPABILITY,),
                         ttl_seconds=procedure.sandbox.timeout_seconds + 60,
                     )
                     run_tools_url = (
