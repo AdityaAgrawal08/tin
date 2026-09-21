@@ -350,7 +350,7 @@ async def test_explicit_failed_adaptation_retry_is_not_delivery_retry(publicatio
     assert (await delivery.saved_source(f.db, repeated.id))["source_run_id"] == str(f.source.id)
 
 
-async def test_delivery_uses_api_budget_without_quote_or_upfront_hold(publication_db, monkeypatch):
+async def test_delivery_funds_one_api_session_without_quote_approval(publication_db, monkeypatch):
     from tin_lite.billing import BillingService
     from tin_lite.billing_contracts import ProjectSpendingPolicy, object_value
 
@@ -396,6 +396,7 @@ async def test_delivery_uses_api_budget_without_quote_or_upfront_hold(publicatio
     terms = object_value(
         await f.db.pool.fetchval("SELECT terms FROM billing_run_budgets WHERE run_id=$1", run.id)
     )
-    assert terms["kind"] == "codex_api" and terms["funding"] == "per_operation_v1"
-    assert await f.db.pool.fetchval("SELECT reserved_nanos FROM billing_accounts") == 0
+    assert terms["kind"] == "codex_api" and terms["funding"] == "procedure_session_v1"
+    assert terms["codex_contract"]["protocol"] == "tin-codex-api-v4"
+    assert await f.db.pool.fetchval("SELECT reserved_nanos FROM billing_accounts") == 5_000_000_000
     assert await f.db.pool.fetchval("SELECT count(*) FROM billing_quotes") == 0
