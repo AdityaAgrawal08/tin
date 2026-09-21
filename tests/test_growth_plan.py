@@ -11,7 +11,8 @@ from test_procedure_publication import publication_db as publication_db
 
 from tin_lite import growth_plan as plan
 from tin_lite.catalog import BUILTIN_WORKFLOWS
-from tin_lite.domain import GROWTH_ONBOARDING_PLAN_WORKFLOW_NAME
+from tin_lite.code_storage import CodeStorage
+from tin_lite.domain import GROWTH_ONBOARDING_PLAN_PATH, GROWTH_ONBOARDING_PLAN_WORKFLOW_NAME
 from tin_lite.growth_onboarding import plan_block, plan_picks, plan_view
 from tin_lite.growth_plan_assets import score as scorer
 from tin_lite.growth_plan_site import evidence_text, read_site
@@ -724,6 +725,8 @@ async def activity_fixture(db, monkeypatch, *, model=None):
         return await original_read(**kw)
 
     async def stage(**kw):
+        # The real storage refuses an output its executor did not declare; keep the fake as strict.
+        assert (kw["executor"], kw["path"]) == (plan.KEY, GROWTH_ONBOARDING_PLAN_PATH)
         head = f.storage.repo.head
         saved = f.storage.repo.edit({kw["path"]: kw["content"]})
         f.storage.repo.head = head
@@ -871,3 +874,46 @@ async def test_a_worker_serving_another_contract_refuses_the_run(publication_db,
     with pytest.raises(ApplicationError, match="could not be prepared"):
         await f.activities.prepare(str(run.id))
     assert f.router.generate.await_count == 0
+
+
+async def test_storage_stages_the_plan_file_and_nothing_else_for_this_executor():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from uuid import uuid4
+
+    # Production refused every plan at the save step: the staging contract knew only the
+    # writing-style file. This runs the real contract, which the activity tests replace.
+    storage = object.__new__(CodeStorage)
+    storage.procedure_checkpoint_revision = AsyncMock(return_value=None)
+    builder = SimpleNamespace(send=AsyncMock(return_value={"commit_sha": "b" * 40}))
+    builder.add_file = lambda *args: builder
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        return builder
+
+    storage.get_repo = AsyncMock(return_value=SimpleNamespace(create_commit=create))
+    args = dict(
+        repo_id="project",
+        branch="main",
+        run_id=str(uuid4()),
+        generation=0,
+        path=GROWTH_ONBOARDING_PLAN_PATH,
+        content=b"# Growth plan\n" * 2000,
+        executor=plan.KEY,
+    )
+    assert len(args["content"]) > 24_000
+    assert await storage.stage_native_output(**args) == "b" * 40
+    assert calls[0]["ephemeral"] is True
+    assert calls[0]["target_branch"] == f"native-plan/{args['run_id']}/0"
+
+    for bad in (
+        {"executor": "style.capture"},
+        {"path": "reports/OTHER.md"},
+        {"content": b"x" * (plan.POLICY["output_max_bytes"] + 1)},
+        {"content": b""},
+    ):
+        with pytest.raises(ValueError, match="invalid native output checkpoint"):
+            await storage.stage_native_output(**{**args, **bad})
+    assert len(calls) == 1

@@ -1381,6 +1381,7 @@ class Database:
         current_commit_sha: str,
         version_label: str,
         definition: dict[str, Any],
+        replaces_executor: str | None = None,
     ) -> Workflow:
         row = await self.pool.fetchrow(
             """
@@ -1403,7 +1404,7 @@ class Database:
                 updated_at = now()
             WHERE workflows.project_id IS NULL AND workflows.key = EXCLUDED.key
               AND (workflows.current_commit_sha IS NULL OR (
-                  workflows.executor = EXCLUDED.executor
+                  (workflows.executor = EXCLUDED.executor OR workflows.executor = $11)
                   AND workflows.definition_repo_id = EXCLUDED.definition_repo_id
                   AND workflows.definition_path = EXCLUDED.definition_path
               ))
@@ -1419,6 +1420,7 @@ class Database:
             current_commit_sha,
             version_label,
             json.dumps(definition),
+            replaces_executor,
         )
         if row is None:
             raise RuntimeError("built-in workflow ID belongs to a different workflow or source")
