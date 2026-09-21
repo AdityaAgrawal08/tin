@@ -170,8 +170,9 @@ class GrowthOnboardingActivities:
                         path=f"workflows/{workflow_key}.json",
                     )
                 )
-                # The plan is a native LLM flow; parents pinned before that change still hold the
-                # Codex procedure definition, which stays runnable from the registry.
+                # The plan is a native LLM flow. A parent pinned before that change still holds the
+                # Codex definition; it is read here, and starting that child then stops the parent
+                # with "Onboarding child executor changed" rather than switching its executor.
                 if child.get("key") != workflow_key or child.get("executor") not in {
                     workflow_key,
                     "codex.procedure",

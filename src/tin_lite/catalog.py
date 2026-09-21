@@ -2141,6 +2141,20 @@ BUILTIN_WORKFLOWS = (
 )
 
 
+# A published workflow keeps its executor. Each entry here is one reviewed exception: the key,
+# the executor it was published with, and the executor that replaces it. Runs keep the executor
+# they were created with; only runs created after the transition use the new one.
+EXECUTOR_TRANSITIONS: dict[str, tuple[str, str]] = {
+    growth_plan.KEY: (CODEX_PROCEDURE_EXECUTOR, growth_plan.KEY),
+}
+
+
+def executor_replaced_by(builtin_key: str, executor: str) -> str | None:
+    """The published executor this built-in's executor is allowed to replace, if any."""
+    previous, current = EXECUTOR_TRANSITIONS.get(builtin_key, (None, None))
+    return previous if current == executor else None
+
+
 PARENT_CHILD_KEYS: dict[str, tuple[str, ...]] = {
     organic_system.KEY: tuple(organic_system.STEPS.values()),
     growth_onboarding.KEY: tuple(growth_onboarding.STEPS.values()),
@@ -2174,7 +2188,8 @@ async def sync_builtin_workflows(
             existing
             and existing.current_commit_sha
             and (
-                existing.executor != builtin.executor
+                existing.executor
+                not in {builtin.executor, executor_replaced_by(builtin.key, builtin.executor)}
                 or existing.definition_repo_id != REGISTRY_REPO_ID
                 or existing.definition_path != builtin.definition_path
             )
@@ -2223,6 +2238,7 @@ async def sync_builtin_workflows(
             title=builtin.title,
             description=builtin.description,
             executor=builtin.executor,
+            replaces_executor=executor_replaced_by(builtin.key, builtin.executor),
             definition_repo_id=REGISTRY_REPO_ID,
             definition_path=builtin.definition_path,
             current_commit_sha=commit_sha,
