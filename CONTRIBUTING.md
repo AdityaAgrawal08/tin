@@ -45,7 +45,8 @@ paid effects. Never include a real credential; contributors should not need Tin'
 infrastructure to run the ordinary checks.
 
 Today, custom API-key connections already support bounded authenticated requests through
-`ctx.services.request`; registered GitHub/Google adapters also have existing named operations.
+`ctx.services.request` in code workflows and `request_service` in Codex procedures;
+registered GitHub/Google adapters also have existing named operations.
 Read [project API connections](docs/project-api-connections.md) for the current extension
 points. A connection must preserve secret isolation, project access and retry safeguards;
 it must not bypass GitHub's selected repository or email-send approval rules.

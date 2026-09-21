@@ -1,8 +1,8 @@
-# Project API connections — Slice C
+# Project API connections
 
-Slice C extends the isolated `workflow.code` executor with project-owned connections.
-Ordinary Python controls the workflow. Tin executes it independently of the authoring agent.
-Existing Codex procedures, one-off tasks, review rules and recorded Temporal commands are unchanged.
+Code workflows and bounded Codex procedures use the same project-owned connections and
+trusted service gateway. Existing definitions without procedure service bindings keep their
+behavior; one-off tasks, review rules and recorded Temporal commands are unchanged.
 Private execution remains restricted to the existing explicit pilot projects.
 
 ## Secure setup
@@ -107,6 +107,62 @@ Requests are at most 16 KB; each response is bounded to 1–64 KB. Sandboxes rem
 and credential-free. Only the trusted activity invokes the gateway through the existing
 protected E2B controller channel and checks the run, membership, lease and fencing tuple.
 
+## Codex procedures
+
+Declare the same bindings under `procedure.services`, alongside required
+`integration_requirements`. The protected Codex controller receives two Tin MCP tools:
+
+```text
+request_service(service="crm", step="fetch_accounts", path="/accounts", method="GET",
+                params={"limit": 3}, body=null)
+call_service(service="search", step="read_panel", operation="search_analytics.read",
+             arguments={"start_date": "2026-09-01", "end_date": "2026-09-07"})
+```
+
+`request_service` returns `{status, data}`. `call_service` uses the registered operation's
+response shape. Keep stable step IDs; a completed request replays, a changed request conflicts,
+and an uncertain request blocks automatic retries even under a different step. All service
+aliases share the existing maximum of eight requests, with per-alias allowances and bounded
+responses. Procedures retain their own declared timeout; the code executor's 60-second total
+window does not apply to them.
+
+Services require a fenced `default` or `isolated` procedure profile. Private procedures remain
+isolated and on demand. Browser, Studio and test-identity tool combinations are unsupported.
+When services are declared, every non-workspace integration dependency needs one binding;
+Google reads then use `call_service`, not the legacy Gmail/Calendar tools. GitHub repository
+workspace and PR delivery requirements remain separate and cannot grant generic write access.
+
+The server resolves only the pinned definition's aliases. It rechecks membership, run status,
+lease, grant expiry, private eligibility and connection permissions before new or cached
+results. API keys remain in trusted services; the temporary grant remains in the protected
+controller and is not exposed to worker commands. It does not grant every connection in the
+project. Migration `040_procedure_services.sql` extends the existing grant table; no new
+credential store or workflow engine is added. Apply it before deploying this code.
+
+### PostHog example
+
+The [PostHog funnel package](../workflow_packages/example.posthog_funnel/workflow.json) shows
+this path without a named PostHog adapter. It is an unregistered authoring example; its real
+analytics quality and provider behavior still require a separately authorized evaluation.
+Copy its folder and key together to `custom.posthog_funnel` for an operator-enabled private
+trial, then validate and activate the exact revision through the ordinary package flow.
+
+Configure `custom.api.posthog` in Integrations with the correct regional API origin, bearer
+authentication, and GET/POST. Use a PostHog **personal API key** restricted to the intended
+project and the `query:read` and `event_definition:read` scopes, not the public ingestion key.
+Enter it only in secure setup. The package declares `http.write` because queries use POST;
+that permission describes
+HTTP methods, not proof that an operation changes provider data. PostHog's key permissions
+must enforce read-only access. Generic connections restrict origin and methods, not specific
+paths or project IDs. See [PostHog authentication](https://posthog.com/docs/api/personal-api-keys)
+and [query API](https://posthog.com/docs/api/query).
+
+Tin's MCP tools expose its HTTP/API gateway to Codex. They do not connect arbitrary remote
+MCP servers. A later named connector or remote MCP adapter can reuse this boundary; neither
+is required for the custom API path. No live PostHog, paid model or E2B acceptance is implied
+by mocked tests. Codex model charges use existing pricing and settlement; connected-account
+charges remain separate and may be unknown.
+
 ## Existing adapters and contributions
 
 `ctx.services.call(service=..., step=..., operation=..., arguments={...})` reuses existing
@@ -122,8 +178,8 @@ project connections with this explicit reviewed mapping:
 
 Adapter arguments are those of the bounded `IntegrationService` operation; project, run,
 account, connection and execution IDs are supplied by Tin. Email sends and GitHub delivery
-retain their established workflow-specific contracts. Existing procedures keep their existing
-run tools; this slice exposes the generic client to explicit code workflows only.
+retain their established workflow-specific contracts. Procedures without service bindings
+keep their existing run tools; procedures with bindings use the same mapping through `call_service`.
 
 To contribute a provider adapter:
 
@@ -132,7 +188,7 @@ To contribute a provider adapter:
 2. Implement bounded operations with safe diagnostics and explicit result contracts. Keep
    OAuth/account selection and provider-specific semantics inside the adapter.
 3. Add a reviewed operation mapping in `code_services.py` and allowed capabilities in
-   `workflow_code.py`. Do not dynamically import plugins or dispatch arbitrary method names.
+   `workflow_services.py`. Do not dynamically import plugins or dispatch arbitrary method names.
 4. Test authorization, revocation, bounded results, failure ambiguity, recovery and usage
    with fixtures before one authorized small live read. Document costs and limitations.
 
@@ -170,7 +226,7 @@ for drained setup/execution: back up both keys, rewrap in a transaction, switch 
 key, verify, then retire the old key. It preserves credential revisions and bindings. The
 reverse operation supports recovery. Existing OAuth/test-identity credentials also use this
 key and require their established re-encryption process; this helper alone is not a global
-key rotation. No production key was changed for Slice C.
+key rotation.
 
 Apply the additive migration before deploying. Rolling the runtime back retains the table,
 connections and receipts; no destructive schema rollback is necessary. Keep the private-project

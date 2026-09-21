@@ -1424,8 +1424,10 @@ class Database:
             raise RuntimeError("built-in workflow ID belongs to a different workflow or source")
         return _workflow(row)
 
-    async def get_workflow(self, workflow_id: UUID) -> Workflow | None:
-        row = await self.pool.fetchrow(
+    async def get_workflow(
+        self, workflow_id: UUID, *, conn: asyncpg.Connection | None = None
+    ) -> Workflow | None:
+        row = await (conn or self.pool).fetchrow(
             """
             SELECT workflow.*,
                    workflow.definition ->> 'system' AS system_id,
@@ -4797,8 +4799,8 @@ class Database:
     ) -> None:
         if not capabilities:
             raise ValueError("run tool grants require at least one capability")
-        if (connection_id is None) != (provider_key == "tin.studio"):
-            raise ValueError("only tin.studio grants may omit an integration connection")
+        if (connection_id is None) != (provider_key in {"tin.studio", "tin.services"}):
+            raise ValueError("only internal tool grants may omit an integration connection")
         token_hash = _token_hash(token)
         expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
         result = await self.pool.execute(
@@ -4833,9 +4835,15 @@ class Database:
         *,
         token: str,
         capability: str | None = None,
+        conn: asyncpg.Connection | None = None,
     ) -> RunToolGrant | None:
+        if conn is None:
+            async with self.pool.acquire() as acquired:
+                return await self.authorize_run_tool_grant(
+                    token=token, capability=capability, conn=acquired
+                )
         token_hash = _token_hash(token)
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with conn.transaction():
             row = await conn.fetchrow(
                 """
                 SELECT grant_row.project_id, grant_row.run_id, grant_row.connection_id,

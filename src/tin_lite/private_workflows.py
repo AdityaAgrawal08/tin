@@ -146,6 +146,7 @@ def validate_private_definition(definition):
             "verification",
             "project_skills",
             "sandbox",
+            "services",
         },
         "private procedure",
     )
@@ -199,7 +200,10 @@ def validate_private_definition(definition):
         },
         "workspace.google": {"gmail.messages.read", "calendar.events.read"},
     }
+    bound_providers = {service.provider_key for service in spec.services}
     for requirement in requirements:
+        if requirement.provider_key in bound_providers:
+            continue  # The shared binding validator checked these capabilities.
         if not requirement.required or not set(requirement.capabilities) <= allowed.get(
             requirement.provider_key, set()
         ):
@@ -210,7 +214,7 @@ def validate_private_definition(definition):
     needed = set(spec.workspace_capabilities)
     if spec.result_kind == "github.pull_request":
         needed |= allowed["infra.github"]
-    if bool(github) != spec.repository_workspace or (
+    if bool(github and github.provider_key not in bound_providers) != spec.repository_workspace or (
         needed and (not github or set(github.capabilities) != needed)
     ):
         raise ValueError(
@@ -673,6 +677,8 @@ def authoring_guide(*, settings, project_id):
                 "github.pull_request (unmerged, verified through the connected-project gateway)",
             ],
             "integrations": {
+                "custom.api.<name>": ["http.read", "http.write"],
+                "analytics.gsc": ["sites.list", "search_analytics.read"],
                 "infra.github": [
                     "contents.read",
                     "contents.write",
@@ -716,6 +722,23 @@ def authoring_guide(*, settings, project_id):
         "code_example_files": example_files(),
         "model_example_files": example_files("custom.order_classification", model_steps=True),
         "connection_example_files": example_files("custom.connected_accounts", connections=True),
+        "procedure_services": {
+            "bindings": "procedure.services uses the same bindings and limits as code.services. "
+            "Declare matching required integration_requirements. Provider secrets stay in Tin.",
+            "tools": [
+                "request_service(service, step, path, method, params, body)",
+                "call_service(service, step, operation, arguments)",
+            ],
+            "limits": "At most four aliases and eight requests total; 16 KB requests and "
+            "1-64 KB responses. The procedure keeps its own bounded runtime.",
+            "recovery": "Reuse a step only for the identical request. Completed responses replay; "
+            "uncertain requests cannot be retried under a new step.",
+            "compatibility": "Fenced default/isolated profiles; private procedures stay isolated "
+            "and on demand. Bind every non-workspace integration. Bound Google reads use "
+            "call_service; no browser, Studio or test-identity combinations.",
+            "costs": "Codex uses existing model pricing. Connected-provider costs are separate "
+            "and unknown unless independently verified; call limits are not dollar ceilings.",
+        },
         "code_contract": {
             "executor": "workflow.code",
             "code_only_policy": "bounded-code-v1",

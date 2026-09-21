@@ -26,6 +26,11 @@ See [code workflows](../docs/code-workflows.md) and
 
 ## Codex procedure example
 
+[PostHog funnel](example.posthog_funnel/workflow.json) is a complete connection example:
+a bounded procedure uses `procedure.services` and a project-owned custom API key through
+Tin's gateway. It is not registered or live-qualified. See [API connections](../docs/project-api-connections.md)
+for secure setup, permissions, limits and evaluation requirements.
+
 Use this shape when the workflow needs a bounded agent run. Private trials of procedure
 packages remain manual, not scheduled.
 
