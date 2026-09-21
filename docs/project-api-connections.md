@@ -91,7 +91,8 @@ accounts = response["data"]["accounts"]
 
 Requests accept an origin-relative path, scalar query parameters and an optional JSON body.
 No author-supplied destination, headers, auth or redirects are accepted. Tin resolves and pins
-public DNS addresses before attaching credentials, verifies TLS for the approved hostname,
+public DNS addresses before attaching credentials, preserves the host resolver's address
+preference, verifies TLS for the approved hostname,
 ignores proxy environment variables, refuses compressed responses and bounds returned JSON.
 Credential echoes are withheld. Non-redirect HTTP responses return `{status, data}` so code
 can validate business results. Invalid, oversized, unavailable or ambiguous results stop the
