@@ -6,6 +6,8 @@ Start with the [README](README.md), [feature status](docs/feature-status.md), an
 Python, Python with multiple managed model steps, or Codex procedures. Start with the
 [copyable packages](workflow_packages/README.md); maintainers explicitly select reviewed
 packages for the Registry. Merging source alone does not activate a workflow.
+Use the shared [creation and qualification checks](docs/workflow-qualification.md) for proposed
+packages, whether authored by a person or Tin. Include cases and disclose what was measured.
 Coding agents should also read [AGENTS.md](AGENTS.md).
 The [documentation index](docs/README.md) groups contributor and self-hosting references.
 

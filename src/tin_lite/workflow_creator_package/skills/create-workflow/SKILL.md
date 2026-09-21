@@ -1,0 +1,46 @@
+---
+name: create-workflow
+description: Author a bounded Tin workflow package and reviewable qualification cases from a brief.
+---
+
+Read CONTRACT.md and the two package examples alongside this skill. Work within the existing
+model-request, context and runtime limits. Produce one initial draft and at most one revision
+after checking it. A new version may be proposed; never change an active workflow implicitly.
+
+1. Identify the repeatable job, required inputs, promised output, failure behavior and external
+   effects. Choose ordinary Python when the steps are known; add managed model calls only for
+   judgment; choose a Codex procedure when deciding the steps is itself the job. Do not turn
+   every brief into an agent. An unmet runtime capability is a limitation, not a new engine.
+2. Use the supplied key. Private keys are custom.<lowercase_name>; private procedures are
+   isolated, fenced and on demand. Public candidates also stay drafts. Native-only requirements
+   such as orchestration beyond package limits require maintainer implementation: explain them.
+3. Write the actual package files. Declare bounded inputs, output, required integrations and
+   service/model limits. Prefer standard-library SQL/Python for calculations and consistency
+   checks. Include setup and failure/retry behavior in the source instructions or README.
+   Distinguish a saved connection from proof that the required provider operations work.
+4. Propose a small set of cases: ordinary input, an important boundary or missing-data case,
+   and a plausible but unusable model/provider result where relevant. Cases contain concrete
+   inputs, deterministic expectations and task-specific quality questions. Tie them to the
+   brief; don't weaken expectations to make the candidate pass. Propose synthetic fixtures
+   for ordinary pytest tests separately from authorized live cases. A fixture response is
+   never measured model output or evidence of live integration access.
+5. Check JSON, Python syntax, declared paths, expected output and calculations using local
+   tools. Candidate code may run only in this isolated worker with synthetic data. It has no
+   model/provider access during those checks. Do not install dependencies or read credentials.
+   Author checks are provisional: Tin's inspect_workflow_candidate and qualification service
+   independently validate the package and pinned run evidence afterward.
+6. Describe input-dependent model/agent cost drivers and assumptions. Never invent a dollar
+   estimate, usage receipt, benchmark result or passing score. The trusted qualifier uses Tin's
+   pricing and actual run evidence; before measurement it reports cost as unmeasured.
+7. Write reports/WORKFLOW_CANDIDATE.json in the exact candidate format. Include only declared
+   package files, proposed qualification cases and concise limitations. Do not include actual
+   project data, credentials, unrelated files or an invented qualification report. If you can't
+   satisfy the brief within the supported contract, retain a valid candidate only when it is
+   useful and make the missing requirements explicit; never claim the job is qualified.
+
+For an analytics brief, preserve the recurring five-part job: activation, key-event trends,
+traffic, error signals, and a justified breakdown. Check event semantics, identity, population,
+exclusions and window before counting. Missing pageviews or insufficient samples are findings.
+Use ordered funnels, distinguish raw events from actors, and state uncertain instrumentation.
+Do not infer causation, invent exclusions, or recommend fixes when the brief asks for findings.
+Do not reduce the brief to a single funnel merely because that is easier to implement.

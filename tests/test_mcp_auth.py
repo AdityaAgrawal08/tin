@@ -157,7 +157,12 @@ async def test_mcp_exposes_personal_project_bootstrap_explicitly() -> None:
     project_list = next(tool for tool in tools if tool.name == "list_projects")
     assert "include_hidden" not in project_list.input_schema.get("properties", {})
     assert "start_integration_connections" in {tool.name for tool in tools}
-    assert len(tools) == 75
+    assert {
+        "inspect_workflow_candidate",
+        "qualify_workflow_package",
+        "evaluate_workflow_case",
+    } <= {tool.name for tool in tools}
+    assert len(tools) == 78
     assert "refund_billing_payment" not in {tool.name for tool in tools}
     start = next(tool for tool in tools if tool.name == "start_workflow")
     assert "instruction and title are only for project.task" in start.description
@@ -168,6 +173,8 @@ async def test_mcp_exposes_personal_project_bootstrap_explicitly() -> None:
             "get_technical_fix_source",
             "preflight_technical_fix",
             "get_run_usage",
+            "inspect_workflow_candidate",
+            "qualify_workflow_package",
         }:
             assert tool.annotations.read_only_hint is True
 

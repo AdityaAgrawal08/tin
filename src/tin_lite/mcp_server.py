@@ -1213,6 +1213,116 @@ def create_mcp_app(
             service.validate(project_id=parsed, actor=token.subject, selection=selection)
         )
 
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def inspect_workflow_candidate(project_id: str, run_id: str) -> dict[str, Any]:
+        """Check a creator's saved candidate and return proposed package/case file changes.
+
+        Does not write files, activate the candidate, run tests or trust author test claims.
+        Review changes before using commit_project_changes and the normal activation flow.
+        """
+        from tin_lite.workflow_qualification_service import (
+            WorkflowQualification,
+            qualification_result,
+        )
+
+        parsed, token, service = await private_service(project_id, "inspect_workflow_candidate")
+        qualifier = WorkflowQualification(
+            database=service.db, storage=service.storage, settings=settings
+        )
+        return await private_result(
+            qualification_result(
+                qualifier.candidate(
+                    project_id=parsed, actor=token.subject, run_id=_mcp_uuid(run_id, field="run_id")
+                )
+            )
+        )
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True))
+    async def qualify_workflow_package(
+        project_id: str, path: str, revision: str, runs: list[dict[str, str]] | None = None
+    ) -> dict[str, Any]:
+        """Check a pinned package and workflow_evals/<key>/qualification.json.
+
+        Optional runs are {case_id, run_id} references to this project's finished runs.
+        Tin verifies exact package and case inputs and reads outputs/usage from trusted state.
+        No code execution, paid requests, publication, activation or billing changes occur.
+        Rubric and safety review remain separate from deterministic assertion results.
+        """
+        from tin_lite.workflow_qualification_service import (
+            QualificationSelection,
+            WorkflowQualification,
+            qualification_result,
+        )
+
+        parsed, token, service = await private_service(project_id, "qualify_workflow_package")
+        try:
+            selection = QualificationSelection.model_validate(
+                {"path": path, "revision": revision, "runs": runs or []}
+            )
+        except ValueError as exc:
+            raise ToolError("invalid_qualification: invalid package or run selection") from exc
+        qualifier = WorkflowQualification(
+            database=service.db, storage=service.storage, settings=settings
+        )
+        return await private_result(
+            qualification_result(
+                qualifier.qualify(project_id=parsed, actor=token.subject, selection=selection)
+            )
+        )
+
+    @server.tool()
+    async def evaluate_workflow_case(
+        project_id: str,
+        path: str,
+        revision: str,
+        workflow_id: str,
+        case_id: str,
+        request_id: str,
+        maximum_usd: str,
+    ) -> dict[str, Any]:
+        """Start one explicitly authorized LIVE qualification case; it may spend money.
+
+        Use only after the member has authorized the candidate's effects and test spending.
+        The exact candidate must already be activated/registered. maximum_usd bounds this
+        case's configured Tin ceiling, not connected-provider charges. Reuse request_id after
+        uncertain starts. This never activates a package, changes limits or grants permissions.
+        Follow get_run, then qualify_workflow_package with the returned run_id and case_id.
+        """
+        from tin_lite.workflow_qualification_service import (
+            EvaluationStart,
+            WorkflowQualification,
+            qualification_result,
+        )
+
+        parsed, token, service = await private_service(project_id, "evaluate_workflow_case")
+        try:
+            selection = EvaluationStart.model_validate(
+                {
+                    "path": path,
+                    "revision": revision,
+                    "workflow_id": workflow_id,
+                    "case_id": case_id,
+                    "request_id": request_id,
+                    "maximum_usd": maximum_usd,
+                }
+            )
+        except ValueError as exc:
+            raise ToolError("invalid_qualification: invalid case or spending limit") from exc
+        qualifier = WorkflowQualification(
+            database=service.db, storage=service.storage, settings=settings
+        )
+        return await private_result(
+            qualification_result(
+                qualifier.start_case(
+                    runtime=runtime(),
+                    project_id=parsed,
+                    actor=token.subject,
+                    client_id=token.client_id,
+                    selection=selection,
+                )
+            )
+        )
+
     @server.tool()
     async def activate_workflow_package(
         project_id: str, path: str, revision: str, request_id: str, expected_revision: str | None

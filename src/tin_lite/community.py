@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from tin_lite.integrations import parse_integration_requirements
@@ -21,6 +22,7 @@ from tin_lite.workflow_packages import (
     MAX_DEFINITION_BYTES,
     MAX_PACKAGE_FILES,
     decode_workflow_source,
+    package_digest,
 )
 from tin_lite.workflow_prerequisites import parse_workflow_prerequisites
 
@@ -181,6 +183,37 @@ async def validate(package: ContributedPackage, *, root: Path | None = None) -> 
         commit_sha="checkout",
         definition_path=package.definition_path,
     )
+
+
+async def validate_files(files: dict[str, bytes], *, definition_path: str):
+    """Validate an in-memory candidate with the same contribution and runtime checks.
+
+    Source remains data. No import, extraction, activation or execution is performed.
+    """
+    if not 1 <= len(files) <= MAX_PACKAGE_FILES or definition_path not in files:
+        raise ValueError("candidate requires a bounded package and its manifest")
+    source = decode_workflow_source(files[definition_path], definition_path=definition_path)
+    _validate_metadata(source.definition)
+    executor = source.definition["executor"]
+    suffixes = CODE_SUFFIXES if executor == "workflow.code" else CONTRIBUTED_SUFFIXES
+    fingerprint = package_digest(files, definition_path=definition_path)
+    for path, raw in files.items():
+        if Path(path).suffix.lower() not in suffixes:
+            raise ValueError("candidate contains an unsupported resource type")
+        if not raw or len(raw) > MAX_DEFINITION_BYTES:
+            raise ValueError("candidate resource exceeds its byte limit")
+
+    async def read(*, path, **_):
+        return files[path]
+
+    loader = load_code_package if executor == "workflow.code" else load_pinned_codex_procedure
+    await loader(
+        storage=SimpleNamespace(read_workflow_resource=read),
+        repo_id=PACKAGE_DIRECTORY,
+        commit_sha="candidate",
+        definition_path=definition_path,
+    )
+    return source.definition, fingerprint
 
 
 async def validate_all(

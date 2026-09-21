@@ -1,0 +1,70 @@
+# Candidate contract
+
+Return one JSON object, with no Markdown fence:
+
+```json
+{
+  "format": "tin-workflow-candidate-v1",
+  "files": {
+    "workflow_packages/custom.example/workflow.json": "JSON manifest as a string",
+    "workflow_packages/custom.example/main.py": "Python source as a string"
+  },
+  "qualification": {
+    "version": 1,
+    "assumptions": ["Which supported input sizes and branches the cases cover."],
+    "cost_drivers": ["What changes the number of model calls or their input/output size."],
+    "effects": ["The actual external effects, including artifact delivery."],
+    "cases": [{
+      "id": "ordinary",
+      "description": "What this concrete case checks.",
+      "inputs": {},
+      "expected_status": "succeeded",
+      "expect": {"contains": ["Required output text"], "excludes": []}
+    }],
+    "rubric": [{"id": "grounding", "question": "Does each conclusion follow from the supplied evidence?"}]
+  },
+  "limitations": ["Required capability or evidence still missing."]
+}
+```
+
+Use the requested key consistently in the manifest and paths. files contains exactly the
+manifest and every declared resource, all UTF-8 strings. No absolute paths, traversal,
+symlinks, binaries, archives, imports of Tin internals or undeclared extra files. The qualifier
+returns qualification.json as a separate proposed file at workflow_evals/<key>/qualification.json;
+it does not belong in the runtime manifest. No test results or dollar claims belong in this format.
+
+Cases: 1–12, unique lowercase IDs, concrete inputs without project_id (Tin binds it),
+expected_status succeeded or failed. Successful cases need assertions or a rubric. The optional
+expect.json_schema uses the same bounded JSON Schema subset as managed model output: closed
+objects with every property required, bounded arrays, scalar types and enum; no refs or regex.
+contains/excludes are literal text checks, not proof that a calculation or narrative is correct.
+Keep rubric questions independent; no overall score. Maintainers review cases and the rubric.
+
+## Runtime choices
+
+- workflow.code: Python 3.12.8 standard library, 1–60 seconds, 1–32 files, 256 KB package,
+  one UTF-8 artifact of at most 64 KB. Export run(ctx, inputs), sync or async, returning
+  {"path": declared_path, "content": text}. Code has no direct network or secrets.
+- Managed steps: optional code.model_routes, at most four routes and eight total calls.
+  Each names provider/model/max_calls/max_input_bytes/max_output_tokens. Supported targets:
+  openai/gpt-5.6-luna and openai/gpt-6-astra. Per-route max_calls 1–4, input bytes 1024–32000,
+  output tokens 64–4096. Call await ctx.models.generate(route=..., step=..., instructions=...,
+  data=..., output_schema=...). Validate result["parsed"] before use. Keep step IDs stable.
+- codex.procedure: PROMPT.md plus skills/<name>/SKILL.md and declared text resources.
+  Private profile isolated/fenced, on_demand, bounded timeout up to 3600 seconds. One project
+  artifact, or a separately reviewed GitHub PR contract. Existing model budgets remain binding.
+  Choosing this executor does not grant recursion, scheduling or extra integrations.
+- API services: declare integration_requirements plus code.services or procedure.services.
+  Up to four aliases, eight total provider calls, 16 KB requests, 1–64 KB responses per alias.
+  Code calls await ctx.services.request(service=..., step=..., method=..., path=..., params=...,
+  body=...). Procedures use request_service with the same arguments. Provider keys stay in Tin.
+  GET needs http.read; POST needs http.write and the connection's POST permission even for a
+  read-only query. Provider-side key scopes must restrict effects. Never automatically retry
+  an uncertain request under a different step. Custom connections restrict origin and methods,
+  not individual paths. Required setup belongs in the candidate's instructions.
+
+Input schemas are closed objects. project_id is exactly {"type":"string","format":"uuid"}.
+Other fields are bounded strings, numbers, booleans or bounded arrays of bounded strings.
+No nested input objects. Code may declare on_demand plus daily/weekly; private procedures only
+on_demand. Human review is {"eligible":true,"reason":"..."} when supported, not a string.
+Review after execution cannot guard an external effect that already happened.

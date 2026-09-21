@@ -37,6 +37,8 @@ your own accounts before use; ordinary contributor tests need no production cred
 
 - [Built-in workflows](workflows.md): generated list with inputs and outputs.
 - [Adding a workflow](adding-a-workflow.md) and [definition contracts](workflow-definition-foundation.md).
+- [Creation and qualification](workflow-qualification.md): one creator package, versioned cases,
+  static checks and explicitly budgeted evaluations using existing run evidence.
 - [Public workflow packages](../workflow_packages/README.md): deterministic Python, multi-step
   managed-model Python and Codex procedures, with explicit maintainer registration.
 - [Private activation](private-workflow-activation.md), [code workflows](code-workflows.md),

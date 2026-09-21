@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "assumptions": [
+    "UTF-8 CSV, at most 16000 characters; integer cents."
+  ],
+  "effects": [
+    "Writes reports/CSV_SUMMARY.md in the bound project."
+  ],
+  "cases": [
+    {
+      "id": "ordinary",
+      "description": "Two rows with exact integer arithmetic.",
+      "inputs": {
+        "csv_text": "amount_cents\n1250\n2250\n"
+      },
+      "expect": {
+        "contains": [
+          "Rows: 2",
+          "Total amount (cents): 3500"
+        ]
+      }
+    },
+    {
+      "id": "zero",
+      "description": "A zero amount is a row, not missing data.",
+      "inputs": {
+        "csv_text": "amount_cents\n0\n"
+      },
+      "expect": {
+        "contains": [
+          "Rows: 1",
+          "Total amount (cents): 0"
+        ]
+      }
+    },
+    {
+      "id": "invalid_amount",
+      "description": "Reject a plausible but invalid fractional cent.",
+      "inputs": {
+        "csv_text": "amount_cents\n12.5\n"
+      },
+      "expected_status": "failed"
+    }
+  ]
+}
