@@ -587,6 +587,7 @@ def workflow_source_view(workflow, settings):
 
 def authoring_guide(*, settings, project_id):
     from tin_lite.workflow_code import example_files
+    from tin_lite.workflow_creator import creator_files
 
     key = "custom.research_digest"
     root = f"workflow_packages/{key}"
@@ -718,6 +719,29 @@ def authoring_guide(*, settings, project_id):
                 "private Codex procedure schedules",
                 "live customer billing",
             ],
+        },
+        "creator_files": creator_files(),
+        "qualification": {
+            "cases_path": "workflow_evals/<workflow_key>/qualification.json",
+            "creator": (
+                "Activate creator_files as custom.workflow_create, then start it "
+                "with a brief. It returns reports/WORKFLOW_CANDIDATE.json."
+            ),
+            "inspect": (
+                "inspect_workflow_candidate returns independently checked proposed "
+                "file changes. Commit them through commit_project_changes after "
+                "review."
+            ),
+            "check": (
+                "qualify_workflow_package validates a pinned package and cases "
+                "without execution. Supply {case_id, run_id} references to evaluate "
+                "finished runs and measure model usage."
+            ),
+            "live": (
+                "Use normal explicit activation and budgeted starts for authorized "
+                "live cases. Do not automatically start candidate code, call "
+                "providers or publish the result."
+            ),
         },
         "code_example_files": example_files(),
         "model_example_files": example_files("custom.order_classification", model_steps=True),

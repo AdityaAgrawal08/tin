@@ -14,9 +14,67 @@ from tin_lite.private_workflows import (
     PrivateWorkflows,
     authoring_guide,
 )
+from tin_lite.workflow_qualification_service import (
+    CandidateSelection,
+    EvaluationStart,
+    QualificationSelection,
+    WorkflowQualification,
+    qualification_result,
+)
 
 router = APIRouter(prefix="/api/projects/{project_id}/workflow-packages")
 USER = Depends(require_user)
+
+
+def qualifier(request):
+    runtime = request.app.state.runtime
+    return WorkflowQualification(
+        database=runtime.database, storage=runtime.storage, settings=request.app.state.settings
+    )
+
+
+@router.post("/candidate")
+async def candidate(
+    project_id: UUID, payload: CandidateSelection, request: Request, user: AuthContext = USER
+):
+    return await result(
+        qualification_result(
+            qualifier(request).candidate(
+                project_id=project_id, actor=user.clerk_user_id, run_id=payload.run_id
+            )
+        )
+    )
+
+
+@router.post("/qualify")
+async def qualify(
+    project_id: UUID, payload: QualificationSelection, request: Request, user: AuthContext = USER
+):
+    return await result(
+        qualification_result(
+            qualifier(request).qualify(
+                project_id=project_id, actor=user.clerk_user_id, selection=payload
+            )
+        )
+    )
+
+
+@router.post("/evaluate")
+async def evaluate(
+    project_id: UUID, payload: EvaluationStart, request: Request, user: AuthContext = USER
+):
+    """Explicit live evaluation; normal project admission, execution and billing apply."""
+    return await result(
+        qualification_result(
+            qualifier(request).start_case(
+                runtime=request.app.state.runtime,
+                project_id=project_id,
+                actor=user.clerk_user_id,
+                client_id=user.client_id,
+                selection=payload,
+            )
+        )
+    )
 
 
 def service(request):

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "assumptions": [
+    "This is a capability case, not proof that live PostHog queries work."
+  ],
+  "cost_drivers": [
+    "Brief length, choice of executor, package resources, one optional author revision."
+  ],
+  "effects": [
+    "Writes one candidate JSON artifact; no activation or provider access."
+  ],
+  "cases": [
+    {
+      "id": "standing_analytics",
+      "description": "Preserve the whole recurring analytics brief.",
+      "inputs": {
+        "brief": "Create a standing product analytics brief for any project with its own PostHog connection. A saved configuration captures the PostHog project, exclusions, reporting window and cadence. Inspect event definitions and semantics before analysis. Produce five sections: activation using ordered funnels, key-event trends, traffic or an explicit unavailable finding, error signals, and one justified breakdown or insufficient-evidence finding. Every table states window, population, exclusions and whether it counts events, people or organizations. Use SQL/Python to verify arithmetic and ordered progression. Never infer ordered conversion from unrelated event totals. Include reproducible queries and evidence references, disclose instrumentation gaps and small samples, and give findings without recommendations. Credentials stay in Tin; query permissions must be read-only at the provider. Use aggregate output. Never join unrelated PostHog projects without a shared identity.",
+        "workflow_key": "product.analytics_brief",
+        "scope": "public"
+      },
+      "expect": {
+        "contains": [
+          "tin-workflow-candidate-v1",
+          "product.analytics_brief",
+          "qualification",
+          "custom.api.posthog"
+        ]
+      }
+    }
+  ],
+  "rubric": [
+    {
+      "id": "job",
+      "question": "Does the package implement all five report sections, not just a single funnel?"
+    },
+    {
+      "id": "evidence",
+      "question": "Are event semantics, ordered funnels, identity, windows, exclusions and missing data checked explicitly?"
+    },
+    {
+      "id": "safety",
+      "question": "Are provider scopes, POST query permissions and connection setup explicit, with no keys in inputs or source?"
+    },
+    {
+      "id": "bounds",
+      "question": "Does the proposal fit current service/runtime limits and disclose limitations honestly?"
+    },
+    {
+      "id": "evaluation",
+      "question": "Would the cases detect a plausible but numerically or semantically wrong report?"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "custom.workflow_create",
+    "title": "Create a workflow",
+    "description": "Turn a brief into a candidate Tin package and versioned qualification cases. Review and qualify the candidate before activation or public contribution.",
+    "version": "1.0.0",
+    "executor": "codex.procedure",
+    "schedule_modes": [
+      "on_demand"
+    ],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "brief": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32000,
+          "title": "What should the workflow do?"
+        },
+        "workflow_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "title": "Candidate workflow key"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "private",
+            "public"
+          ],
+          "default": "private",
+          "title": "Intended scope"
+        },
+        "constraints": {
+          "type": "string",
+          "maxLength": 4000,
+          "default": "",
+          "title": "Constraints and acceptance criteria"
+        }
+      },
+      "required": [
+        "project_id",
+        "brief",
+        "workflow_key"
+      ]
+    },
+    "procedure": {
+      "prompt_path": "PROMPT.md",
+      "skills_path": "skills",
+      "skill_files": [
+        "skills/create-workflow/SKILL.md",
+        "skills/create-workflow/CONTRACT.md",
+        "skills/create-workflow/code-example.json",
+        "skills/create-workflow/procedure-example.json"
+      ],
+      "entry_skill": "create-workflow",
+      "workspace": {
+        "kind": "project.state"
+      },
+      "sandbox": {
+        "profile": "isolated",
+        "egress": "fenced",
+        "timeout_seconds": 900
+      },
+      "output": {
+        "kind": "project.artifact",
+        "path": "reports/WORKFLOW_CANDIDATE.json",
+        "media_type": "application/json",
+        "max_bytes": 512000
+      }
+    }
+  }
+}

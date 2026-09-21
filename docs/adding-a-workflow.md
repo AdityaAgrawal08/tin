@@ -79,6 +79,11 @@ They don't acquire the interactive conversation and controls of a one-off `proje
 
 ## Submit it
 
+For a new or revised package, follow [creation and qualification](workflow-qualification.md):
+keep a small versioned case file outside the package, test behavior offline, and distinguish
+author claims from measured live quality and cost. Tin's creator uses the same checks as
+hand-authored contributions. Existing packages can adopt the case file incrementally.
+
 Put the package under `workflow_packages/<key>/`, with the same key in the manifest.
 Use a descriptive key such as `reports.customer_digest`; reserve `example.*` for examples
 and `custom.*` for project-local copies. Include offline tests under `tests/`: a useful input,
