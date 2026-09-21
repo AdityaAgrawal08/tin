@@ -3,7 +3,7 @@
   "definition": {
     "key": "growth.buyer_trust",
     "title": "Check if buyers trust this checkout",
-    "description": "A founder runs this before launch or after a signup QA to learn whether a skeptical buyer would trust the site and checkout, and gets a ranked trust report with exact next fixes.",
+    "description": "A founder runs this before launch or after a signup QA to learn whether a skeptical buyer would trust the site and checkout, and gets a ranked trust report with exact next fixes. Safe public checks only; not a CVE pentest.",
     "version": "1.0.0",
     "executor": "codex.procedure",
     "schedule_modes": ["on_demand"],
