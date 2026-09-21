@@ -15,7 +15,6 @@
         "site_url": {
           "type": "string",
           "format": "uri",
-          "pattern": "^https://",
           "minLength": 10,
           "maxLength": 500,
           "title": "Public website",
