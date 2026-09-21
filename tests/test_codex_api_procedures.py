@@ -142,7 +142,9 @@ def test_only_fixed_tin_verifiers_run_after_freeze_without_grants(monkeypatch):
     assert calls[-1][1]["env"]["TIN_PROCEDURE_CONTEXT_PATH"].endswith("context.json")
 
 
-def test_v2_namespaces_are_local_tools_not_hosted_execution():
+@pytest.mark.parametrize("contract", [CONTRACT, PROCEDURE_CONTRACT_V2, PROCEDURE_CONTRACT])
+@pytest.mark.parametrize("additional", [False, True])
+def test_namespaced_local_tools_preserve_pinned_limits(contract, additional):
     body = {
         **BODY,
         "tools": [
@@ -156,13 +158,32 @@ def test_v2_namespaces_are_local_tools_not_hosted_execution():
             {"type": "web_search"},
         ],
     }
-    raw = json.dumps(body).encode()
-    assert request_body(raw, "responses", PROCEDURE_CONTRACT)["max_output_tokens"] == 8192
+    tools = body.pop("tools")
+    if additional:
+        body["input"] = [{"type": "additional_tools", "tools": tools}]
+    else:
+        body["tools"] = tools
+    accepted = request_body(json.dumps(body).encode(), "responses", contract)
+    assert accepted["max_output_tokens"] == contract["max_output_tokens"]
+    if contract == PROCEDURE_CONTRACT:
+        assert "max_tool_calls" not in accepted
+    else:
+        assert accepted["max_tool_calls"] == 1
+    assert (accepted["input"][0]["tools"] if additional else accepted["tools"]) == tools
+
+
+@pytest.mark.parametrize("contract", [CONTRACT, PROCEDURE_CONTRACT_V2, PROCEDURE_CONTRACT])
+@pytest.mark.parametrize("additional", [False, True])
+@pytest.mark.parametrize("kind", ["mcp", "file_search", "web_search", "namespace"])
+def test_namespaces_cannot_hide_hosted_or_nested_tools(contract, additional, kind):
+    tools = [{"type": "namespace", "name": "tin-run", "tools": [{"type": kind}]}]
+    body = {**BODY}
+    if additional:
+        body["input"] = [{"type": "additional_tools", "tools": tools}]
+    else:
+        body["tools"] = tools
     with pytest.raises(HTTPException):
-        request_body(raw, "responses", CONTRACT)
-    body["tools"][0]["tools"][0]["type"] = "file_search"
-    with pytest.raises(HTTPException):
-        request_body(json.dumps(body).encode(), "responses", PROCEDURE_CONTRACT)
+        request_body(json.dumps(body).encode(), "responses", contract)
 
 
 def test_v2_supplies_hosted_search_without_changing_v1_or_multiplying_tools():
@@ -304,7 +325,16 @@ async def test_procedures_use_standard_responses_for_hosted_search(publication_d
         if extended:
             await upgrade_attempt(publication_db, run, contract)
         inputs = [
-            {"type": "additional_tools", "tools": [{"type": "function", "name": "local_test"}]}
+            {
+                "type": "additional_tools",
+                "tools": [
+                    {
+                        "type": "namespace",
+                        "name": "tin-run",
+                        "tools": [{"type": "function", "name": "call_service"}],
+                    }
+                ],
+            }
         ]
         response = await post(
             client,
