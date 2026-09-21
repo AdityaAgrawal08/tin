@@ -347,31 +347,37 @@ class CodeStorage:
         """Trusted native output uses a run-owned branch, never a sandbox credential."""
         from uuid import UUID
 
+        from tin_lite.domain import (
+            GROWTH_ONBOARDING_PLAN_PATH,
+            GROWTH_ONBOARDING_PLAN_WORKFLOW_NAME,
+        )
         from tin_lite.project_files import safe_project_file_path
         from tin_lite.writing_style import STYLE_PATH
 
         code = executor == "workflow.code"
-        valid_path = (
-            (
+        # Each trusted executor may stage only its own declared output, within its own bound.
+        if code:
+            valid_path = (
                 safe_project_file_path(path)
                 and path != "wiki/INDEX.md"
                 and path.split("/")[0]
                 not in {".tin-lite", "procedures", "registry", "workflow_packages"}
             )
-            if code
-            else path == STYLE_PATH
-        )
+            limit, target = 64_000, f"procedures/{run_id}/{generation}"
+        elif executor == GROWTH_ONBOARDING_PLAN_WORKFLOW_NAME:
+            valid_path = path == GROWTH_ONBOARDING_PLAN_PATH
+            limit, target = 40_000, f"native-plan/{run_id}/{generation}"
+        else:
+            valid_path = path == STYLE_PATH
+            limit, target = 24_000, f"native-style/{run_id}/{generation}"
         if (
-            executor not in {"style.capture", "workflow.code"}
+            executor not in {"style.capture", "workflow.code", GROWTH_ONBOARDING_PLAN_WORKFLOW_NAME}
             or str(UUID(run_id)) != run_id
             or not valid_path
-            or not 0 < len(content) <= (64_000 if code else 24_000)
+            or not 0 < len(content) <= limit
         ):
             raise ValueError("invalid native output checkpoint")
         content.decode("utf-8")
-        target = (
-            f"procedures/{run_id}/{generation}" if code else f"native-style/{run_id}/{generation}"
-        )
         revision = await self.procedure_checkpoint_revision(repo_id=repo_id, branch=target)
         if revision:
             saved = await self.read_procedure_checkpoint(

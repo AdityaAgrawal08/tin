@@ -300,6 +300,7 @@ class GrowthPlanActivities:
                     generation=run.generation,
                     path=path,
                     content=content,
+                    executor=plan.KEY,
                 )
                 checkpoint = OutputCheckpoint.create(
                     run=run,
