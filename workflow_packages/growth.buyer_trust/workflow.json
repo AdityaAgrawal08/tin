@@ -58,7 +58,7 @@
     "procedure": {
       "prompt_path": "PROMPT.md",
       "skills_path": "skills",
-      "skill_files": ["skills/buyer-trust/SKILL.md"],
+      "skill_files": ["skills/buyer-trust/SKILL.md", "skills/buyer-trust/playbook.md"],
       "entry_skill": "buyer-trust",
       "workspace": {"kind": "project.state"},
       "sandbox": {"profile": "isolated", "egress": "fenced", "timeout_seconds": 900},
