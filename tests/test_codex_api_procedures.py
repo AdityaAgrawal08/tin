@@ -455,23 +455,73 @@ async def test_multiple_searches_compaction_and_retry_settle_once(billed, monkey
         await relay.close()
 
 
-async def test_existing_v2_credit_quote_keeps_its_contract(billed, monkeypatch):
+@pytest.mark.parametrize("historical", [CONTRACT, PROCEDURE_CONTRACT_V2])
+@pytest.mark.parametrize("profile", ["default", "isolated"])
+async def test_existing_credit_quote_keeps_its_contract(billed, monkeypatch, historical, profile):
     f = billed
-    terms = {**api_terms({"procedure": {}}), "codex_contract": PROCEDURE_CONTRACT_V2}
+    terms = {**api_terms({"procedure": {}}), "codex_contract": historical}
+    if historical == CONTRACT:
+        terms.pop("codex_contract")  # Original v1 quotes omitted the pin.
     monkeypatch.setattr(f.billing, "terms", lambda definition, project_id, inputs=None: terms)
-    run, relay, client, sent = await paid_relay(f, contract=PROCEDURE_CONTRACT_V2)
+    run, relay, client, sent = await paid_relay(f, contract=historical)
     try:
         async with f.db.pool.acquire() as conn:
             contract = await select_contract(
                 db=f.db,
                 conn=conn,
                 run=run,
-                procedure=SimpleNamespace(sandbox=SandboxProfile(profile="default")),
+                procedure=SimpleNamespace(sandbox=SandboxProfile(profile=profile)),
                 settings=SimpleNamespace(codex_api_projects=set(), luna_api_key="synthetic"),
             )
-        assert contract == PROCEDURE_CONTRACT_V2
+        assert contract == historical
         assert (await post(client, run)).status_code == 200
         assert json.loads(sent[0].content)["max_tool_calls"] == 1
+    finally:
+        await client.aclose()
+        await relay.close()
+
+
+async def test_new_private_run_continues_past_pilot_tokens_with_same_spending_ceiling(billed):
+    f = billed
+    definition = f.workflow.definition
+    assert definition["procedure"]["sandbox"]["profile"] == "isolated"
+    terms = api_terms(definition)
+    run, relay, client, sent = await paid_relay(
+        f, contract=terms.get("codex_contract", CONTRACT), provider_usage=(16000, 1500, 12000, 3000)
+    )
+    try:
+        f.settings.codex_api_projects = set()
+        f.settings.luna_api_key = "synthetic"
+        profile = SandboxProfile(profile="isolated", egress="fenced", timeout_seconds=900)
+        async with f.db.pool.acquire() as conn:
+            selected = await select_contract(
+                db=f.db,
+                conn=conn,
+                run=run,
+                procedure=SimpleNamespace(sandbox=profile),
+                settings=f.settings,
+            )
+        assert execution_profile(profile, selected) == profile
+        for index in range(7):
+            body = {**BODY, "input": f"authoring step {index}"}
+            assert (await post(client, run, body)).status_code == 200
+        assert selected == PROCEDURE_CONTRACT
+        assert 7 * 17500 > CONTRACT["max_observed_tokens"]
+        assert json.loads(sent[-1].content)["max_output_tokens"] == 8192
+        assert (await post(client, run, body)).status_code == 409
+        assert len(sent) == 7
+        await finish(f, run)
+        await f.billing.settle(run.id)
+        await f.billing.settle(run.id)
+        charge = await f.billing.run_charge(run.id, ACTOR)
+        assert charge["maximum_usd"] == "5.00"
+        assert charge["charged_usd"] == "0.94"
+        assert (
+            await f.db.pool.fetchval(
+                "SELECT count(*) FROM billing_ledger WHERE run_id=$1 AND kind='charge'", run.id
+            )
+            == 1
+        )
     finally:
         await client.aclose()
         await relay.close()
@@ -497,7 +547,10 @@ def test_remote_compaction_is_not_priced_from_invented_supplier_fields():
     assert price_response(RATE_CARD, {**record, "model": "different"}) is None
     assert price_response(RATE_CARD, {**record, "service_tier": "priority"}) is None
     assert price_response(RATE_CARD, {**record, "response_object": None}) is None
-    assert "codex_contract" not in api_terms({"procedure": {"sandbox": {"profile": "isolated"}}})
+    assert (
+        api_terms({"procedure": {"sandbox": {"profile": "isolated"}}})["codex_contract"]
+        == PROCEDURE_CONTRACT
+    )
     assert api_terms({"procedure": {}})["codex_contract"] == PROCEDURE_CONTRACT
 
 

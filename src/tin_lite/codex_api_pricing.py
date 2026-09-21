@@ -56,6 +56,7 @@ def api_terms(definition):
     }
     if definition.get("procedure", {}).get("sandbox", {}).get("profile", "default") in {
         "default",
+        "isolated",
         "browser",
         "studio",
     }:

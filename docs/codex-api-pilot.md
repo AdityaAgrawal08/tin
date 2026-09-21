@@ -77,12 +77,15 @@ Missing usage remains unknown. Compaction has request/body bounds, not an output
 parameter unsupported by its protocol. Provider-hosted files, stored response references,
 background execution, remote tools and arbitrary upstream routing are not supported.
 
-New default-profile procedures select **`tin-codex-api-v3`**: 64 requests, 1 MiB request
-bodies, 8,192 output tokens per response, 128,000 configured context tokens, automatic
+New credit-budgeted default and isolated procedures select **`tin-codex-api-v3`**: 64 requests,
+1 MiB request bodies, 8,192 output tokens per response, 128,000 configured context tokens, automatic
 compaction at 96,000, and a stop after 2,000,000 observed cumulative tokens. Both server
 and controller use the pinned contract. These are bounded operating limits, not a promise
 that every procedure can finish within them or its credit ceiling. Existing isolated v1
 quotes and receipts retain their original limits; changing flags cannot upgrade them.
+The isolated sandbox remains fenced, with the same private-project allowlist and $5 run ceiling.
+Unbudgeted isolated pilot runs still select v1; this change applies when new credit terms are
+created, not when an older run resumes or begins execution.
 V3 keeps v2's context/usage limits but omits `max_tool_calls`, allowing the model to
 search, open pages and follow up within one response. Already admitted v1/v2 runs
 retain their one-call ceiling. Run timeouts and credit reservations still apply;
