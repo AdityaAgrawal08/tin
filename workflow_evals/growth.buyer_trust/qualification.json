@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "assumptions": [
+    "Public HTTPS site, safe GET only, no login or form submits.",
+    "Report is evidence for fixes, not a penetration test or CVE audit."
+  ],
+  "effects": ["Writes reports/BUYER_TRUST.md in the bound project."],
+  "cases": [
+    {
+      "id": "ordinary",
+      "description": "Standard trust audit of a public site.",
+      "inputs": {"site_url": "https://example.com", "depth": "standard"},
+      "expect": {"contains": ["Observed", "Fix now", "Verification record"]}
+    },
+    {
+      "id": "focused",
+      "description": "Focused home plus checkout check with notes.",
+      "inputs": {
+        "site_url": "https://example.com",
+        "depth": "focused",
+        "notes": "Checkout lives at /checkout, guest option expected."
+      },
+      "expect": {"contains": ["Observed", "checkout", "Verification record"]}
+    },
+    {
+      "id": "extensive",
+      "description": "Extensive audit including linked money pages.",
+      "inputs": {"site_url": "https://example.com", "depth": "extensive"},
+      "expect": {"contains": ["Observed", "Roadmap", "Verification record"]}
+    }
+  ]
+}
