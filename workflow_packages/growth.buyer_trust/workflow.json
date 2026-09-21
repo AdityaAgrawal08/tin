@@ -1,0 +1,58 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "growth.buyer_trust",
+    "title": "Check if buyers trust this checkout",
+    "description": "A founder runs this before launch or after a signup QA to learn whether a skeptical buyer would trust the site and checkout, and gets a ranked trust report with exact next fixes.",
+    "version": "1.0.0",
+    "executor": "codex.procedure",
+    "schedule_modes": ["on_demand"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "site_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "minLength": 10,
+          "maxLength": 500,
+          "title": "Public website",
+          "description": "Exact HTTPS origin without a path or query.",
+          "x-tin-ui": {"control": "text", "order": 10}
+        },
+        "depth": {
+          "type": "string",
+          "enum": ["focused", "standard", "extensive"],
+          "default": "standard",
+          "title": "Depth",
+          "x-tin-ui": {"control": "select", "order": 20}
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 2000,
+          "default": "",
+          "title": "Anything to check?",
+          "description": "Checkout quirks, known constraints, or areas a stranger would not know. Never credentials.",
+          "x-tin-ui": {"control": "textarea", "order": 30}
+        }
+      },
+      "required": ["project_id", "site_url"]
+    },
+    "procedure": {
+      "prompt_path": "PROMPT.md",
+      "skills_path": "skills",
+      "skill_files": ["skills/buyer-trust/SKILL.md"],
+      "entry_skill": "buyer-trust",
+      "workspace": {"kind": "project.state"},
+      "sandbox": {"profile": "isolated", "egress": "fenced", "timeout_seconds": 900},
+      "output": {
+        "kind": "project.artifact",
+        "path": "reports/BUYER_TRUST.md",
+        "media_type": "text/markdown",
+        "max_bytes": 32000
+      }
+    }
+  }
+}
