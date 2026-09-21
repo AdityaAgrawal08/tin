@@ -1568,6 +1568,7 @@ class Database:
                    latest.id AS last_run_id,
                    latest.status AS last_run_status,
                    latest.artifact_path AS last_artifact_path,
+                   latest.artifact_title AS last_artifact_title,
                    latest.result_summary AS last_result_summary,
                    latest.started_at AS last_started_at,
                    latest.finished_at AS last_finished_at,
@@ -1582,7 +1583,8 @@ class Database:
             FROM project_workflows AS configured
             JOIN workflows ON workflows.id = configured.workflow_id
             LEFT JOIN LATERAL (
-                SELECT id, status, artifact_path, result_summary, started_at, finished_at
+                SELECT id, status, artifact_path, artifact_title, result_summary,
+                       started_at, finished_at
                 FROM workflow_runs
                 WHERE project_workflow_id = configured.id
                   AND status IN ('succeeded', 'failed', 'stopped')
@@ -1620,6 +1622,7 @@ class Database:
                    latest.id AS last_run_id,
                    latest.status AS last_run_status,
                    latest.artifact_path AS last_artifact_path,
+                   latest.artifact_title AS last_artifact_title,
                    latest.result_summary AS last_result_summary,
                    latest.started_at AS last_started_at,
                    latest.finished_at AS last_finished_at,
@@ -1634,7 +1637,8 @@ class Database:
             FROM project_workflows AS configured
             JOIN workflows ON workflows.id = configured.workflow_id
             LEFT JOIN LATERAL (
-                SELECT id, status, artifact_path, result_summary, started_at, finished_at
+                SELECT id, status, artifact_path, artifact_title, result_summary,
+                       started_at, finished_at
                 FROM workflow_runs
                 WHERE project_workflow_id = configured.id
                   AND status IN ('succeeded', 'failed', 'stopped')
@@ -5984,6 +5988,7 @@ class Database:
         artifact_ref: str,
         artifact_path: str,
         summary: str = "Answer page draft is ready for your review.",
+        artifact_title: str | None = None,
     ) -> bool:
         """Expose a reviewable artifact and pause only when this run pinned review."""
         async with self.pool.acquire() as conn, conn.transaction():
@@ -6009,6 +6014,7 @@ class Database:
                         canonical_commit_sha = $2,
                         artifact_ref = $3,
                         artifact_path = $4,
+                        artifact_title = $5,
                         review_requested_at = CASE
                             WHEN review_required THEN COALESCE(review_requested_at, now())
                             ELSE review_requested_at
@@ -6040,9 +6046,10 @@ class Database:
                     canonical_commit_sha,
                     artifact_ref,
                     artifact_path,
+                    artifact_title,
                 )
             if review_required and row["review_decision"] is None:
-                filename = artifact_path.rsplit("/", 1)[-1]
+                filename = artifact_title or artifact_path.rsplit("/", 1)[-1]
                 revision_supported = await conn.fetchval(
                     "SELECT project_id IS NULL "
                     "AND key IN ('content.generate','content.public_article') "
@@ -6652,6 +6659,7 @@ def _project_workflow(row: asyncpg.Record) -> ProjectWorkflow:
         last_run_id=row.get("last_run_id"),
         last_run_status=RunStatus(raw_status) if raw_status is not None else None,
         last_artifact_path=row.get("last_artifact_path"),
+        last_artifact_title=row.get("last_artifact_title"),
         last_error=row["last_error"],
         settings_revision=row["settings_revision"],
         created_by_clerk_user_id=row["created_by_clerk_user_id"],
@@ -6706,6 +6714,7 @@ def _run(row: asyncpg.Record) -> WorkflowRun:
         expected_head_sha=row["expected_head_sha"],
         canonical_commit_sha=row["canonical_commit_sha"],
         artifact_path=row["artifact_path"],
+        artifact_title=row.get("artifact_title"),
         artifact_ref=row["artifact_ref"],
         retained_output=(
             _json_object(row["retained_output"], field="retained output")

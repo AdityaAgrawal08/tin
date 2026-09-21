@@ -1991,7 +1991,7 @@ function systemLastLabel(configured) {
     : configured.last_result_summary;
   if (summary) return `${summary}${date ? `, ${date}` : ""}`;
   const path = configured.last_artifact_path;
-  if (path) return `${path.split("/").at(-1)}${date ? `, ${date}` : ""}`;
+  if (path) return `${configured.last_artifact_title || path.split("/").at(-1)}${date ? `, ${date}` : ""}`;
   return "No earlier run";
 }
 
@@ -2153,7 +2153,7 @@ function systemRunDetailHtml(run, includeClose = true) {
   const workflow = workflowForRun(run);
   const available = availableRunOutput(run);
   const output = available
-    ? `<button type="button" data-run-detail-artifact="${escapeHtml(run.id)}">${available.source === "retained" ? hasOutputConflict(run) ? "Compare" : "Saved result" : escapeHtml(String(available.path).split("/").at(-1) || "Open result")} →</button>`
+    ? `<button type="button" data-run-detail-artifact="${escapeHtml(run.id)}">${available.source === "retained" ? hasOutputConflict(run) ? "Compare" : "Saved result" : escapeHtml((available.source === "canonical" && run.artifact_title) || String(available.path).split("/").at(-1) || "Open result")} →</button>`
     : run.review_source_run_id
       ? `<button type="button" data-run-detail-artifact="${escapeHtml(run.id)}">${run.status === "failed" ? "Retry revision" : "Previous copy"} →</button>`
       : "—";
@@ -3971,6 +3971,7 @@ async function runProjectWorkflow(projectWorkflowId, button) {
       configured.last_run_id = run.id;
       configured.last_run_status = run.status;
       configured.last_artifact_path = run.artifact_path;
+      configured.last_artifact_title = run.artifact_title;
     }
     render();
     showToast(`${formatWorkflowKey(run.workflow_name)} started.`);
