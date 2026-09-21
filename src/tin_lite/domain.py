@@ -225,6 +225,7 @@ class ProjectWorkflow:
     updated_at: datetime
     skip_scheduled_for: datetime | None = None
     last_result_summary: str | None = None
+    last_artifact_title: str | None = None
     last_started_at: datetime | None = None
     last_finished_at: datetime | None = None
     run_count: int = 0
@@ -267,6 +268,7 @@ class WorkflowRun:
     expected_head_sha: str | None = None
     canonical_commit_sha: str | None = None
     artifact_path: str | None = None
+    artifact_title: str | None = None
     artifact_ref: str | None = None
     retained_output: dict[str, Any] | None = None
     output_resolution: dict[str, Any] | None = None

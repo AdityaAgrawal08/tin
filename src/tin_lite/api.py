@@ -504,6 +504,7 @@ class RunView(BaseModel):
     retained_output: RetainedOutputView | None = None
     output_resolution: dict | None = None
     artifact_path: str | None
+    artifact_title: str | None = None
     canonical_commit_sha: str | None
     error_message: str | None
     task_title: str | None = None
@@ -687,6 +688,7 @@ class ProjectWorkflowView(BaseModel):
     last_run_id: UUID | None
     last_run_status: RunStatus | None
     last_artifact_path: str | None
+    last_artifact_title: str | None = None
     last_error: str | None
     settings_revision: int
     created_at: datetime

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from tin_lite.content_delivery import (
     article_body,
     choice_key,
     destination,
+    display_title,
     github_key,
     render_file,
     settings_path,
@@ -200,6 +202,13 @@ async def test_review_then_exact_delivery_is_idempotent_and_pins_settings(
         "SELECT explanation FROM run_decisions WHERE run_id=$1", run.id
     )
     assert "Approval opens an unmerged" in explanation
+    # The decision and the run are labelled by the draft's heading, not its run-owned file name.
+    title = article_body(raw, ctx)[1]
+    items = json.loads(
+        await f.db.pool.fetchval("SELECT items FROM run_decisions WHERE run_id=$1", run.id)
+    )
+    assert items[0]["title"] == title and items[0]["file"] == run.artifact_path
+    assert run.artifact_title == title and str(run.id) not in title
     with pytest.raises(ValueError, match="Approve"):
         await f.delivery.deliver(run.id)
     f.runtime.integrations.github_create_pull_request.assert_not_called()
@@ -222,6 +231,12 @@ async def test_review_then_exact_delivery_is_idempotent_and_pins_settings(
     assert (await f.db.get_run(run.id)).status == RunStatus.SUCCEEDED
     status = await f.delivery.status(run)
     assert status["status"] == "completed" and status["pull_request"]["number"] == 42
+    # A saved workflow's "last result" carries the same label.
+    await f.db.pool.execute(
+        "UPDATE workflow_runs SET project_workflow_id=$2 WHERE id=$1", run.id, f.configured.id
+    )
+    saved = await f.db.list_project_workflows(project_id=f.project.id)
+    assert [w.last_artifact_title for w in saved if w.last_run_id == run.id] == [title]
     assert (await f.delivery.statuses([run]))[run.id] == status
     facts = await f.service.programs.facts(f.configured.id)
     assert facts["drafts"][ctx["item"]["id"]]["delivery"]["pull_request"]["number"] == 42
@@ -435,3 +450,11 @@ async def test_approval_can_keep_a_draft_in_tin_or_open_a_pull_request(publicati
     await f.delivery.deliver(run.id)
     f.runtime.integrations.github_create_pull_request.assert_not_called()
     f.runtime.integrations.github_commit_files.assert_not_called()
+
+
+def test_display_title_is_a_bounded_single_line_label_or_nothing():
+    assert display_title(b"---\nx: 1\n---\n# A **useful** `guide`\n\nBody") == "A useful guide"
+    assert len(display_title(b"# " + b"long " * 100)) <= 160
+    assert display_title(b"No heading here") is None
+    assert display_title(b"# \x00\x07") is None
+    assert display_title(b"\xff\xfe") is None

@@ -3765,11 +3765,22 @@ class TinActivities:
         from tin_lite.content_delivery import ContentDelivery
 
         delivery = await ContentDelivery(database=self._db, storage=self._storage).status(run)
+        artifact_title = None
+        if workflow_definition.key in {"content.generate", "content.public_article"}:
+            # These drafts live at a run-owned path, so their heading is the readable label.
+            from tin_lite.content_delivery import display_title
+
+            artifact_title = display_title(
+                await self._storage.read_canonical_artifact(
+                    repo_id=project.state_repo_id, commit_sha=sha, path=path
+                )
+            )
         required = await self._db.request_human_review(
             run_id=run_id,
             canonical_commit_sha=sha,
             artifact_ref=artifact_ref,
             artifact_path=path,
+            artifact_title=artifact_title,
             summary=(
                 f"{workflow_definition.title} is ready for your review. Approval opens an unmerged "
                 f"GitHub PR in {delivery['repository']}"
