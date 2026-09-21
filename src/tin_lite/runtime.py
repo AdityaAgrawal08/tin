@@ -14,6 +14,7 @@ from tin_lite.activity_lanes import (
     TRUSTED_ACTIVITIES,
     ActivityLaneInterceptor,
     trusted_task_queue,
+    workflow_runner,
 )
 from tin_lite.answer_page import AnswerPageDrafter
 from tin_lite.catalog import sync_builtin_workflows
@@ -359,6 +360,7 @@ async def build_runtime(settings: Settings) -> RuntimeServices:
             # machine's parallel capacity across projects, not an account lock.
             max_concurrent_activities=4,
             workflows=registered_workflows(),
+            workflow_runner=workflow_runner(),
             activities=activities,
             interceptors=[ActivityLaneInterceptor()],
         ),

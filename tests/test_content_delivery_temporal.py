@@ -1,14 +1,17 @@
 import asyncio
+import io
+import logging
 from datetime import timedelta
 from uuid import uuid4
 
+import pytest
 from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Replayer, Worker
 from test_project_codex_execution import temporal_env as temporal_env
 
-from tin_lite.activity_lanes import ActivityLaneInterceptor, trusted_task_queue
+from tin_lite.activity_lanes import ActivityLaneInterceptor, trusted_task_queue, workflow_runner
 from tin_lite.codex_execution import ProjectCodexExecution, execute_project_codex
 from tin_lite.workflows import CodexProcedureWorkflow, ContentDraftDeliveryWorkflow
 
@@ -64,7 +67,21 @@ class BeforeDelivery:
         )
 
 
-async def test_delivery_follows_approval_and_retries_without_codex(temporal_env):
+@pytest.fixture
+def rich_root_handler():
+    """The serve process logs through the MCP server's Rich handler on the root logger."""
+    # Imported here: other tests load this module's workflow classes inside the sandbox.
+    from rich.console import Console
+    from rich.logging import RichHandler
+
+    handler = RichHandler(console=Console(file=io.StringIO()), rich_tracebacks=True)
+    logging.getLogger().addHandler(handler)
+    yield
+    logging.getLogger().removeHandler(handler)
+
+
+async def test_delivery_follows_approval_and_retries_without_codex(temporal_env, rich_root_handler):
+    # A failed delivery is logged from workflow code. That log must not fail the workflow task.
     events = []
     review = asyncio.Event()
     fail_delivery = True
@@ -106,6 +123,7 @@ async def test_delivery_follows_approval_and_retries_without_codex(temporal_env)
     options = dict(
         task_queue=queue,
         workflows=[CodexProcedureWorkflow, ProjectCodexExecution, ContentDraftDeliveryWorkflow],
+        workflow_runner=workflow_runner(),
         activities=activities,
         interceptors=[ActivityLaneInterceptor()],
     )

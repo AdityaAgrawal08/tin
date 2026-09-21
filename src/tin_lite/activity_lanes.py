@@ -14,6 +14,7 @@ from temporalio.worker import (
     WorkflowInterceptorClassInput,
     WorkflowOutboundInterceptor,
 )
+from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner, SandboxRestrictions
 
 CODEX_ACTIVITIES = frozenset(
     {
@@ -153,3 +154,16 @@ class _LaneOutbound(WorkflowOutboundInterceptor):
             # on its legacy/Codex slot.
             input.disable_eager_execution = True
         return super().start_activity(input)
+
+
+def workflow_runner() -> SandboxedWorkflowRunner:
+    """The workflow sandbox, with the process log handler's library passed through.
+
+    The MCP server installs a Rich handler on the root logger, and log handlers run on the
+    workflow thread. Re-importing Rich inside the sandbox fails, which turned one
+    `workflow.logger` call into a workflow task that failed on every retry. Rich only
+    renders log records; it takes no part in workflow commands or replay.
+    """
+    return SandboxedWorkflowRunner(
+        restrictions=SandboxRestrictions.default.with_passthrough_modules("rich")
+    )
