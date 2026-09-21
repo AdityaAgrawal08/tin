@@ -21,6 +21,7 @@ from tin_lite.codex_api import (
     CONTRACT,
     DIAGRAM_CONTRACT,
     PROCEDURE_CONTRACT,
+    SESSION_CONTRACT,
     USAGE,
     attempt_key,
     decode_record,
@@ -31,6 +32,7 @@ from tin_lite.codex_api import (
 from tin_lite.codex_api_pricing import price_response
 from tin_lite.codex_web_evidence import WebEvidence
 from tin_lite.usage_capture import count, object_value
+from tin_lite.workflow_costs import session_funded
 
 router = APIRouter()
 MAX_EVENT_BYTES = 2 * 1024 * 1024
@@ -43,7 +45,7 @@ def web_usage(output, protocol):
     calls = [
         item for item in output if isinstance(item, dict) and item.get("type") == "web_search_call"
     ]
-    if protocol != PROCEDURE_CONTRACT["protocol"]:
+    if protocol not in {PROCEDURE_CONTRACT["protocol"], SESSION_CONTRACT["protocol"]}:
         return {"web_search_calls": len(calls)}  # Preserve historical observations.
     counts = {"search": 0, "open_page": 0, "find_in_page": 0}
     for item in calls:
@@ -166,7 +168,7 @@ def request_body(raw: bytes, operation: str, contract=CONTRACT):
             service_tier="default",
             max_output_tokens=min(requested, contract["max_output_tokens"]),
         )
-        if contract in (PROCEDURE_CONTRACT, DIAGRAM_CONTRACT):
+        if contract in (PROCEDURE_CONTRACT, DIAGRAM_CONTRACT, SESSION_CONTRACT):
             # Do not cut off search -> open -> find within one model step. Run
             # reservations, usage settlement, token limits and timeouts remain.
             body.pop("max_tool_calls", None)
@@ -307,41 +309,53 @@ class CodexAPIRelay:
                 raise HTTPException(
                     409, "This model request was already attempted; do not repurchase"
                 )
-            rows = await conn.fetch(
-                """SELECT status, result FROM effect_receipts
-                   WHERE operation=$1 AND result->>'run_id'=$2 LIMIT $3""",
-                USAGE,
-                str(run_id),
-                contract["max_requests"] + 1,
-            )
-            if any(item["status"] != "completed" for item in rows):
-                raise HTTPException(409, "A prior API request is active or unconfirmed")
-            if len(rows) >= contract["max_requests"]:
-                raise HTTPException(429, "Codex API request limit reached")
-            tokens = sum(
-                (decode_record(item["result"]).get("usage") or {}).get("total_tokens") or 0
-                for item in rows
-            )
-            if tokens >= contract["max_observed_tokens"]:
-                raise HTTPException(429, "Codex API token limit reached")
-            if enrolled:
-                for item in rows:
-                    previous = decode_record(item["result"])
-                    priced = price_response(budget["pricing"], previous)
-                    if priced is None or priced[0] > budget["request_maximum_nanos"]:
-                        raise HTTPException(
-                            409, "Prior API usage is unresolved or exceeded its reservation"
-                        )
+            request_number = None
+            if contract == SESSION_CONTRACT:
+                if not enrolled or billing is None or not session_funded(budget):
+                    raise HTTPException(403, "This session requires its funded spending budget")
                 try:
                     await billing.begin_operation(
-                        conn,
-                        run_id=run_id,
-                        operation_id=key,
-                        kind="codex_api",
-                        maximum=lambda terms: terms["request_maximum_nanos"],
+                        conn, run_id=run_id, operation_id=key, kind="codex_api", maximum=None
                     )
                 except BillingError as exc:
                     raise HTTPException(exc.status, exc.diagnostic()) from None
+            else:
+                rows = await conn.fetch(
+                    """SELECT status, result FROM effect_receipts
+                       WHERE operation=$1 AND result->>'run_id'=$2 LIMIT $3""",
+                    USAGE,
+                    str(run_id),
+                    contract["max_requests"] + 1,
+                )
+                if any(item["status"] != "completed" for item in rows):
+                    raise HTTPException(409, "A prior API request is active or unconfirmed")
+                if len(rows) >= contract["max_requests"]:
+                    raise HTTPException(429, "Codex API request limit reached")
+                tokens = sum(
+                    (decode_record(item["result"]).get("usage") or {}).get("total_tokens") or 0
+                    for item in rows
+                )
+                if tokens >= contract["max_observed_tokens"]:
+                    raise HTTPException(429, "Codex API token limit reached")
+                if enrolled:
+                    for item in rows:
+                        previous = decode_record(item["result"])
+                        priced = price_response(budget["pricing"], previous)
+                        if priced is None or priced[0] > budget["request_maximum_nanos"]:
+                            raise HTTPException(
+                                409, "Prior API usage is unresolved or exceeded its reservation"
+                            )
+                    try:
+                        await billing.begin_operation(
+                            conn,
+                            run_id=run_id,
+                            operation_id=key,
+                            kind="codex_api",
+                            maximum=lambda terms: terms["request_maximum_nanos"],
+                        )
+                    except BillingError as exc:
+                        raise HTTPException(exc.status, exc.diagnostic()) from None
+                request_number = len(rows) + 1
             observation = {
                 "version": 1,
                 "execution_kind": "codex_openai_api",
@@ -356,7 +370,7 @@ class CodexAPIRelay:
                 "contract": contract,
                 "endpoint": operation,
                 "request_fingerprint": fingerprint,
-                "request_number": len(rows) + 1,
+                "request_number": request_number,
                 "attempted_at": datetime.now(UTC).isoformat(),
                 "outcome": "unconfirmed",
                 "usage": None,
@@ -413,7 +427,7 @@ class CodexAPIRelay:
                 )
 
     async def relay(self, run_id, grant, raw, operation, headers):
-        request_body(raw, operation, DIAGRAM_CONTRACT)
+        request_body(raw, operation, SESSION_CONTRACT)
         fingerprint = request_identity(headers, raw, operation)
         upstream_headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -478,7 +492,11 @@ class CodexAPIRelay:
         async def stream():
             buffer = b""
             observed = False
-            evidence = WebEvidence() if contract in (PROCEDURE_CONTRACT, DIAGRAM_CONTRACT) else None
+            evidence = (
+                WebEvidence()
+                if contract in (PROCEDURE_CONTRACT, DIAGRAM_CONTRACT, SESSION_CONTRACT)
+                else None
+            )
             inserted = 0
             sequence = 0
             try:

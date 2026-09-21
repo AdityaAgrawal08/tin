@@ -551,7 +551,11 @@ class E2BRuntime:
                     raise RuntimeError("isolated sandbox did not confirm its runtime protocol")
                 if run_input.api_url is not None:
                     protocol = (run_input.api_contract or {}).get("protocol")
-                    version = {"tin-codex-api-v2": 2, "tin-codex-api-v3": 3}.get(protocol, 1)
+                    version = {
+                        "tin-codex-api-v2": 2,
+                        "tin-codex-api-v3": 3,
+                        "tin-codex-api-v4": 4,
+                    }.get(protocol, 1)
                     ready = await sandbox.commands.run(
                         "python3 /opt/tin-lite/codex_api_config.py "
                         + (f"--check-v{version}" if version > 1 else "--check"),
