@@ -113,6 +113,11 @@ The standard Responses endpoint accepts the same context and `additional_tools` 
 their declarations are validated against the same priced-tool allowlist, not translated.
 V1 retains its existing protocol negotiation.
 
+All API contracts accept Codex's namespaces of local function/custom tools, including
+run-bound MCP gateway tools declared in `additional_tools`. Every member is checked;
+remote MCP, hosted execution and nested namespaces remain rejected. This transport
+compatibility does not upgrade v1 limits, pricing, authentication or existing run pins.
+
 The v3 relay also requests `web_search_call.results`. A direct provider probe proved
 that merely replaying a completed `web_search_call`, even with its returned `results`,
 does not carry the source text into a stateless follow-up. The first model step could
