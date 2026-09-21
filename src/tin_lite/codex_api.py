@@ -46,6 +46,18 @@ DIAGRAM_CONTRACT = {
     "max_request_bytes": 8 * 1024 * 1024,
     "max_non_image_bytes": PROCEDURE_CONTRACT["max_request_bytes"],
 }
+# Ordinary, funded procedures use the model's per-response/context capacity.
+# Session spend and the existing sandbox timeout bound the job, not lifetime tokens.
+# Keep v1-v3 byte-for-byte intact for admitted runs, included work and other profiles.
+SESSION_CONTRACT = {
+    "mode": MODE,
+    "model": MODEL,
+    "protocol": "tin-codex-api-v4",
+    "max_request_bytes": 8 * 1024 * 1024,
+    "max_output_tokens": 128_000,
+    "context_window": 1_050_000,
+    "auto_compact_tokens": 922_000,
+}
 
 
 def procedure_contract(validator=None):
@@ -74,7 +86,7 @@ def supports_api_definition(definition):
 
 
 def is_procedure_contract(value):
-    return value in (PROCEDURE_CONTRACT_V2, PROCEDURE_CONTRACT, DIAGRAM_CONTRACT)
+    return value in (PROCEDURE_CONTRACT_V2, PROCEDURE_CONTRACT, DIAGRAM_CONTRACT, SESSION_CONTRACT)
 
 
 def is_api_contract(value):
