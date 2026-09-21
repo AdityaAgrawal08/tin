@@ -315,6 +315,20 @@ under its own step identifier. When the direct fetch is blocked, thin or unreach
 receipted hosted-web-search read stands in for it, the way `content.answer_page` searches. The
 saved file passes the same parsers setup reads it with before it is published.
 
+Founder-facing words on an MCP result come in two fields the agent treats apart, built by
+`_founder_words` in `mcp_server.py`. `quote` is Tin's own words to the founder (the plan's
+"Tin's view" while the run waits for a pick, the setup handshake's win, roles and what is
+under way once it is done): the agent relays it as given, set apart, unchanged. `relay` is a
+list of facts the agent tells the founder in its own words (a run started, a connection page
+opening, the outlook, the two pages, what was left out and why, an approval recorded): the agent
+weaves them into its reply. A producer marks its own text: only words written to be read as
+Tin's go in `quote`; status and guidance go in `relay`, and the agent's own next steps go in
+`note` or `get_started`, never in either. `growth_onboarding.founder_words` builds the
+handshake's split and `render_report` writes it into `RESULT.md` under a fenced `tin-words`
+block that `report_words` reads back for `get_run`; the review explanation stored for the plan
+is Tin's view alone, since the dashboard shows it to the founder. `tell_the_founder` is the two
+joined, kept one release for clients on older instructions.
+
 `creative.character` and `creative.product_demo` form the `creative-studio` system.
 `creative.character` is a native model workflow: the switchboard fetches the product page itself
 (public HTTPS only, resolved addresses checked, HTML and up to three stylesheets bounded),

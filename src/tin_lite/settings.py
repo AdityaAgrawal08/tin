@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = Field(default=None, alias="GEMINI_API_KEY")
     openrouter_api_key: SecretStr | None = Field(default=None, alias="OPENROUTER_API_KEY")
     billing_enabled: bool = Field(default=False, alias="TIN_LITE_BILLING_ENABLED")
+    # Browser sign-ups see a locked dashboard until their coding agent sets up the first
+    # workflow. Off once browser onboarding exists, or for a test account.
+    browser_lock_enabled: bool = Field(default=True, alias="TIN_LITE_BROWSER_LOCK_ENABLED")
     billing_test_enabled: bool = Field(default=False, alias="TIN_LITE_BILLING_TEST_ENABLED")
     billing_hosted_defaults_enabled: bool = Field(
         default=False, alias="TIN_LITE_BILLING_HOSTED_DEFAULTS_ENABLED"

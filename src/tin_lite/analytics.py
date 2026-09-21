@@ -78,6 +78,7 @@ METADATA_FIELDS = frozenset(
         "control",
         "stopped_runs",
         "removed_schedules",
+        "agent",
     }
 )
 

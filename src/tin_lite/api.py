@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.routing import APIRoute
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from tin_lite import project_task_control
+from tin_lite import analytics, project_task_control
 from tin_lite.auth import AuthContext, require_user
 from tin_lite.billing_contracts import BillingError
 from tin_lite.campaign_revisions import request_email_campaign_revision
@@ -124,6 +124,35 @@ router.include_router(organic_system_router)
 router.include_router(project_connections_router)
 logger = logging.getLogger(__name__)
 AUTHENTICATED_USER = Depends(require_user)
+
+
+@router.post("/api/events/lock-page", status_code=204)
+async def record_lock_page_event(request: Request, user: AuthContext = AUTHENTICATED_USER):
+    """A browser sign-up met the locked dashboard: opened it, or copied the install line.
+
+    The lock stands in for browser onboarding until it exists; these two events show how
+    many people it sends to their coding agent. The body is a fixed vocabulary, never
+    free text.
+    """
+    body = await request.json() if await request.body() else {}
+    body = body if isinstance(body, dict) else {}
+    action = body.get("action")
+    if action not in {"viewed", "install_copied"}:
+        raise HTTPException(status_code=400, detail="Unknown lock page action.")
+    agent = body.get("agent")
+    project_id = body.get("project_id")
+    analytics.capture(
+        f"lock_page_{action}",
+        distinct_id=user.clerk_user_id,
+        properties={
+            "clerk_user_id": user.clerk_user_id,
+            "agent": agent if agent in {"codex", "claude", "api"} else None,
+        },
+        project_id=str(project_id) if isinstance(project_id, str) and project_id else None,
+    )
+    return Response(status_code=204)
+
+
 BILLING_QUOTE_HEADER = Header(default=None, alias="Tin-Billing-Quote")
 
 
@@ -285,6 +314,7 @@ def _static_page(filename: str, request: Request) -> Response:
         "{{ASSET_VERSION}}": ASSET_VERSION,
         "<!--PRIVATE_FONTS_STYLESHEET-->": private_font_stylesheet(settings),
         "{{BILLING_ENABLED}}": str(getattr(settings, "billing_enabled", False)).lower(),
+        "{{BROWSER_LOCK_ENABLED}}": str(getattr(settings, "browser_lock_enabled", True)).lower(),
         "{{CLERK_PUBLISHABLE_KEY}}": settings.clerk_publishable_key,
         "{{CLERK_FRONTEND_API_URL}}": settings.clerk_frontend_api_url,
         "{{APP_URL}}": escape(app_url, quote=True),
@@ -474,6 +504,7 @@ class RunView(BaseModel):
     retained_output: RetainedOutputView | None = None
     output_resolution: dict | None = None
     artifact_path: str | None
+    artifact_title: str | None = None
     canonical_commit_sha: str | None
     error_message: str | None
     task_title: str | None = None
@@ -657,6 +688,7 @@ class ProjectWorkflowView(BaseModel):
     last_run_id: UUID | None
     last_run_status: RunStatus | None
     last_artifact_path: str | None
+    last_artifact_title: str | None = None
     last_error: str | None
     settings_revision: int
     created_at: datetime

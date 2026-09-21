@@ -114,6 +114,7 @@ TABLE_RULES = section("## 2b. Fill", "## 3. Propose")
 SCOPE_RULES = section("## 3. Propose", "## 4. List")
 RUN_RULES = section("## 4. List", "## 4b. Tin's view")
 VIEW_RULES = section("## 4b. Tin's view", "## 5. Exact")
+DELIVERY_RULES = section("Before the systems list, describe", "Then a `## Connections`")
 
 # ---------------------------------------------------------------- schemas
 
@@ -274,6 +275,7 @@ TABLE_SCHEMA = obj(
 VIEW_SCHEMA = obj(
     {
         "picture": STR,
+        "first_deliverable": {"type": "array", "items": STR},
         "first_phase": {"type": "array", "items": STR},
         "next_phase": {"type": "array", "items": STR},
         "systems_to_enable": {"type": "array", "items": STR},
@@ -395,6 +397,7 @@ def availability(tin_state, has_site, code_on_github, hard_nos=(), market_suppor
                     "schedule_modes": w.get("schedule_modes", []),
                     "required_inputs": w.get("required_inputs", []),
                     "optional_inputs": w.get("optional_inputs", []),
+                    "input_schema": w.get("input_schema") or {},
                     "requires_integrations": w.get("requires_integrations", []),
                 }
             )
@@ -457,6 +460,17 @@ def validate_system(item, avail, inputs):
         values = {
             i["name"]: i["value"] for i in w["inputs"] if i["name"] in known and i["value"].strip()
         }
+        for name, prop in (spec.get("input_schema", {}).get("properties") or {}).items():
+            value = values.get(name)
+            if value is None or not isinstance(prop, dict):
+                continue
+            limit = prop.get("maxLength")
+            if prop.get("enum") and value not in prop["enum"]:
+                notes.append(f"{w['key']}: {name} is not one of its listed values")
+                del values[name]
+            elif isinstance(limit, int) and len(value) > limit:
+                notes.append(f"{w['key']}: {name} cut to {limit} characters")
+                values[name] = value[:limit].rsplit(" ", 1)[0].rstrip(" ,;:")
         if "market" in spec["required_inputs"]:
             values["market"] = inputs.get("_search_market") or "US"
         if "target" in spec["required_inputs"] and w["key"] == "visibility.audit":
@@ -653,8 +667,8 @@ def system_prompt(context, sid, candidates, suggested, avail, inputs, scope, all
         "Other systems are written in parallel by the same rules; code decided the order and which are Tin's suggestion. "
         '`role_line` is the checklist sentence: "Tin will <what, how often>; <where it lands>." without the id, name or Needs '
         "clause, which code adds. Use only the workflow keys listed for this system, only modes in `schedule_modes` (`once` means "
-        "on_demand), and give every name in `required_inputs` a value taken from this business; keep each input value under 600 "
-        'characters. `weekdays` is empty unless mode is weekly; `local_time` is "HH:MM". Code sets visibility.audit\'s target. '
+        "on_demand), and give every name in `required_inputs` a value taken from this business; every value satisfies the workflow's "
+        '`input_schema`: an enum input is exactly one of its listed values, and a string stays within its maxLength and under 600 characters. `weekdays` is empty unless mode is weekly; `local_time` is "HH:MM". Code sets visibility.audit\'s target. '
         "A workflow whose `configured_by` names another system is configured there: include it only if your role needs it, and code "
         "then copies that system's cadence, so your role_line names the work without stating a different cadence for it. Your "
         "system must keep at least one workflow if any listed workflow serves it. "
@@ -706,7 +720,7 @@ def decided_roles(systems, avail):
 def view_prompt(context, chosen, flags, scope):
     system = (
         "You write the opening and the scope of a founder's growth plan. Follow these rules from the governing procedure exactly.\n\n"
-        f"{WRITING}\n\n{VIEW_RULES}\n\n{SCOPE_RULES}\n\n"
+        f"{WRITING}\n\n{VIEW_RULES}\n\n{SCOPE_RULES}\n\n{DELIVERY_RULES}\n\n"
         "The roles and cadences are already decided and listed under DECIDED ROLES; say the same cadences, never new ones. "
         '`picture` is the opening paragraph only, two to four sentences, with no bullets, no "first phase" and no "next phase" text inside it; '
         "the bullets go only in `first_phase` and `next_phase`. `picture` plus the bullets stay under 1,000 characters. `first_phase` has two to four bullets from the suggested systems; "
@@ -721,7 +735,9 @@ def view_prompt(context, chosen, flags, scope):
         'not act on the break yet"); those never go under additional roles. `additional_roles` and `own_workflows` follow the patterns above and may be empty; each one must be carried by a workflow '
         "listed under DECIDED ROLES or already running, because nothing else gets set up: never promise a brief, a post, a report or "
         "a review that no listed workflow produces, `missing_pieces` lists only key absent "
-        "infrastructure and may be empty."
+        "infrastructure and may be empty. `first_deliverable` is two to four sentences on the first useful deliverable, by the rule "
+        "above: what it contains, the question it answers, roughly when it arrives, the founder's next decision, and that it lands "
+        "in Tin's Files or waits in Decisions. It comes from a `once` workflow under DECIDED ROLES, or the earliest scheduled one."
     )
     user = (
         f"{context}\n\nSCOPE DECISION (the picture must lead to this; left_out reasons belong in the scope as one clause):\n"
@@ -763,6 +779,7 @@ def lint(table, systems, view, scope=None, understanding=None):
         for k in ("week", "month", "quarter"):
             slots[f"system.{item['id']}.outlook.{k}"] = item["outlook"][k]
     for key in (
+        "first_deliverable",
         "first_phase",
         "next_phase",
         "systems_to_enable",
@@ -771,7 +788,7 @@ def lint(table, systems, view, scope=None, understanding=None):
         "missing_pieces",
         "left_out_notes",
     ):
-        for i, x in enumerate(view[key]):
+        for i, x in enumerate(view.get(key, [])):
             slots[f"view.{key}.{i}"] = x
     slots["view.picture"] = view["picture"]
     for i, x in enumerate(view.get("requests", [])):
@@ -976,6 +993,7 @@ def render(
     out += [
         "",
         "## What Tin would run",
+        *([" ".join(view["first_deliverable"]), ""] if view.get("first_deliverable") else []),
         "Tell your agent, in your words, what Tin should take on. It records your answer with record_onboarding_picks, which ticks these lines.",
     ]
     block = []
@@ -1012,28 +1030,43 @@ def render(
             "- [ ] control: pull_request — Tin opens a pull request; nothing changes until you merge it."
         )
     out += [
-        "- [ ] control: review_in_tin — Tin drafts; you approve each item in Decisions, and your yes opens a pull request or publishes when GitHub is connected. (Tin's suggestion)",
+        "- [ ] control: review_in_tin — Tin drafts; you approve each item in Decisions, approved drafts stay in Tin unless GitHub pull-request delivery is configured. PRs need your merge. (Tin's suggestion)",
         "- [ ] control: auto_publish — not yet for your stack; Tin will tell you when it is.",
     ]
     required = {i for s in block for i in s["integrations"]}
     no_outreach = "no_cold_email" in (inputs.get("hard_nos") or [])
+    live_site = bool(inputs.get("product_url"))
+    # Content and site work is better as pull requests; a blank form does not hide that.
+    site_work = any(
+        w["key"].startswith(("content.", "technical.", "organic."))
+        for s in block
+        for w in s["workflows"]
+    )
+    repo_unknown = site_work and not flags["code_on_github"] and not flags["hosted_site_builder"]
     has = [
         p
         for p, on in (
-            ("infra.github", flags["code_on_github"]),
-            ("analytics.gsc", bool(inputs.get("product_url"))),
-            ("workspace.google", flags["mailbox_on_google"] and not no_outreach),
+            ("infra.github", flags["code_on_github"] or repo_unknown),
+            ("analytics.gsc", live_site),
+            # Requested only when the selected work needs signup testing or mailbox research.
+            ("workspace.google", False),
         )
         if on or p in required
     ]
     unlocks = {
-        "infra.github": "approved drafts ship as pull requests and site fixes arrive as pull requests",
-        "analytics.gsc": "real queries and impressions for the plan and the audits",
+        "infra.github": "approved drafts and site fixes arrive as pull requests you merge"
+        + (
+            ", once you confirm which repository serves the site"
+            if repo_unknown and "infra.github" not in required
+            else ""
+        )
+        + "; without it drafts stay in Tin",
+        "analytics.gsc": "read access adds your actual queries and impressions; without it the audits use public data",
         "workspace.google": "signup and product checks with a test account"
         if no_outreach
         else "outreach sends from your mailbox",
     }
-    if has:
+    if has or live_site:
         out += [
             "",
             "## Connections",
@@ -1043,6 +1076,9 @@ def render(
             f"- [{'x' if p in connected else ' '}] {p} — {PROVIDERS[p]}, {'required' if p in required else 'recommended'}: {unlocks[p]}"
             for p in has
         ]
+        out.append(
+            "Tell your agent which product analytics records signups and activation. Tin does not connect to it yet."
+        )
     out += [
         "",
         "```tin-plan",

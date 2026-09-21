@@ -226,6 +226,39 @@ async def test_http_pins_dns_bounds_response_refuses_redirects_and_credential_ec
         assert len(seen) == 4
 
 
+@pytest.mark.parametrize(
+    "addresses",
+    [
+        ["93.184.215.14", "2606:4700:4700::1111"],
+        ["2606:4700:4700::1111", "93.184.215.14"],
+    ],
+)
+async def test_http_preserves_resolver_preference_and_checks_every_address(addresses):
+    seen = []
+
+    async def resolver(*_args, **_kwargs):
+        return [(None, None, None, None, (ip, 443)) for ip in addresses]
+
+    def wire(request):
+        seen.append(request)
+        assert request.url.host == addresses[0]
+        assert request.headers["host"] == "api.crm.example"
+        assert request.extensions["sni_hostname"] == "api.crm.example"
+        return httpx.Response(200, stream=httpx.ByteStream(b'{"ok": true}'))
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(wire)) as client:
+        args = dict(maximum=8000, operation_id="stable-op", client=client, resolver=resolver)
+        connection = SimpleNamespace(configuration=CONFIG)
+        result = await request_api(connection, SECRET, payload()["arguments"], **args)
+        assert result == {"status": 200, "data": {"ok": True}}
+        assert len(seen) == 1
+
+        addresses.append("127.0.0.1")
+        with pytest.raises(IntegrationAuthorizationError, match="not a public address"):
+            await request_api(connection, SECRET, payload()["arguments"], **args)
+        assert len(seen) == 1
+
+
 class ServiceCompute:
     def __init__(self):
         self.calls = 0

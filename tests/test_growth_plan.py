@@ -236,6 +236,10 @@ class FakeModel:
     def _view(self, step, user, schema):
         return {
             "picture": "Acme Forms has a live site. Clinics can find it through search.",
+            "first_deliverable": [
+                "The first audit lands in Files within ten minutes.",
+                "It shows where AI answers name you, so you can choose the first page.",
+            ],
             "first_phase": ["drafting one page every Monday"],
             "next_phase": [
                 "open pull requests once GitHub is connected",
@@ -306,6 +310,64 @@ async def test_code_not_the_model_decides_what_reaches_the_block():
     assert "face" not in result["report"]["profile_parameters"]
     # "Tin will ..." is not something only the founder can do.
     assert "Tin will draft pages." not in result["plan"]
+
+
+async def test_plan_says_what_arrives_first_and_never_promises_publication():
+    text = (await plan.build_plan(inputs(), SITE, SITE_TEXT, TODAY, FakeModel()))["plan"]
+    run = text.split("## What Tin would run\n", 1)[1]
+
+    # The first useful deliverable comes before the systems list, and where it arrives is said.
+    assert run.startswith("The first audit lands in Files within ten minutes.")
+    assert run.index("so you can choose the first page") < run.index("- [ ] ")
+    # Approval is not publication, and nothing promises a notification.
+    assert "approved drafts stay in Tin unless GitHub pull-request delivery is configured" in text
+    assert "publishes when GitHub is connected" not in text
+    assert not re.search(r"(?i)\b(slack|email you|notify)", text)
+    # A blank repository field does not hide GitHub; it is conditional on confirming the repository.
+    connections = text.split("## Connections\n", 1)[1].split("```tin-plan", 1)[0]
+    assert "analytics.gsc" in connections and "actual queries and impressions" in connections
+    assert "product analytics" in connections and "does not connect" in connections
+    # The mailbox is requested only when the selected work needs it.
+    needed = {i for item in block_of(text) for i in item["integrations"]}
+    assert ("workspace.google" in connections) == ("workspace.google" in needed)
+
+
+def test_workflow_inputs_are_held_to_the_input_schema():
+    spec = workflow(
+        "project.brief",
+        "Weekly brief",
+        required=("focus",),
+        input_schema={
+            "properties": {
+                "focus": {"type": "string", "maxLength": 240},
+                "depth": {"type": "string", "enum": ["light", "deep"]},
+            }
+        },
+    )
+    spec["optional_inputs"] = ["depth"]
+    avail = {"briefs": {"workflows": [dict(spec, includable=True)]}}
+    item = {
+        "id": "briefs",
+        "workflows": [
+            {
+                "key": "project.brief",
+                "mode": "weekly",
+                "weekdays": ["monday"],
+                "local_time": "09:00",
+                "inputs": [
+                    {"name": "focus", "value": "signups from clinics " * 20},
+                    {"name": "depth", "value": "as deep as the evidence allows"},
+                ],
+            }
+        ],
+    }
+
+    kept, notes = plan.validate_system(item, avail, inputs())
+
+    # Prose never reaches an enum, and a string never exceeds its limit.
+    assert "depth" not in kept[0]["inputs"]
+    assert 0 < len(kept[0]["inputs"]["focus"]) <= 240
+    assert any("depth" in n for n in notes) and any("240" in n for n in notes)
 
 
 async def test_hard_nos_and_founder_rulings_are_enforced_by_code():

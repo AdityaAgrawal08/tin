@@ -152,6 +152,16 @@ def document_body(raw):
     return article, title.group(1).strip()
 
 
+def display_title(raw):
+    """A saved document's own heading as a one-line label, or None to keep its file name."""
+    try:
+        _, title = document_body(raw)
+    except ValueError:  # includes undecodable bytes
+        return None
+    title = re.sub(r"[`*_]", "", "".join(c for c in title if c.isprintable()))
+    return " ".join(title.split())[:160].strip() or None
+
+
 def new_page_header(settings, title, date, slug):
     if not settings.frontmatter:
         return ""

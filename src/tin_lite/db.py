@@ -1424,8 +1424,10 @@ class Database:
             raise RuntimeError("built-in workflow ID belongs to a different workflow or source")
         return _workflow(row)
 
-    async def get_workflow(self, workflow_id: UUID) -> Workflow | None:
-        row = await self.pool.fetchrow(
+    async def get_workflow(
+        self, workflow_id: UUID, *, conn: asyncpg.Connection | None = None
+    ) -> Workflow | None:
+        row = await (conn or self.pool).fetchrow(
             """
             SELECT workflow.*,
                    workflow.definition ->> 'system' AS system_id,
@@ -1566,6 +1568,7 @@ class Database:
                    latest.id AS last_run_id,
                    latest.status AS last_run_status,
                    latest.artifact_path AS last_artifact_path,
+                   latest.artifact_title AS last_artifact_title,
                    latest.result_summary AS last_result_summary,
                    latest.started_at AS last_started_at,
                    latest.finished_at AS last_finished_at,
@@ -1580,7 +1583,8 @@ class Database:
             FROM project_workflows AS configured
             JOIN workflows ON workflows.id = configured.workflow_id
             LEFT JOIN LATERAL (
-                SELECT id, status, artifact_path, result_summary, started_at, finished_at
+                SELECT id, status, artifact_path, artifact_title, result_summary,
+                       started_at, finished_at
                 FROM workflow_runs
                 WHERE project_workflow_id = configured.id
                   AND status IN ('succeeded', 'failed', 'stopped')
@@ -1618,6 +1622,7 @@ class Database:
                    latest.id AS last_run_id,
                    latest.status AS last_run_status,
                    latest.artifact_path AS last_artifact_path,
+                   latest.artifact_title AS last_artifact_title,
                    latest.result_summary AS last_result_summary,
                    latest.started_at AS last_started_at,
                    latest.finished_at AS last_finished_at,
@@ -1632,7 +1637,8 @@ class Database:
             FROM project_workflows AS configured
             JOIN workflows ON workflows.id = configured.workflow_id
             LEFT JOIN LATERAL (
-                SELECT id, status, artifact_path, result_summary, started_at, finished_at
+                SELECT id, status, artifact_path, artifact_title, result_summary,
+                       started_at, finished_at
                 FROM workflow_runs
                 WHERE project_workflow_id = configured.id
                   AND status IN ('succeeded', 'failed', 'stopped')
@@ -4797,8 +4803,8 @@ class Database:
     ) -> None:
         if not capabilities:
             raise ValueError("run tool grants require at least one capability")
-        if (connection_id is None) != (provider_key == "tin.studio"):
-            raise ValueError("only tin.studio grants may omit an integration connection")
+        if (connection_id is None) != (provider_key in {"tin.studio", "tin.services"}):
+            raise ValueError("only internal tool grants may omit an integration connection")
         token_hash = _token_hash(token)
         expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
         result = await self.pool.execute(
@@ -4833,9 +4839,15 @@ class Database:
         *,
         token: str,
         capability: str | None = None,
+        conn: asyncpg.Connection | None = None,
     ) -> RunToolGrant | None:
+        if conn is None:
+            async with self.pool.acquire() as acquired:
+                return await self.authorize_run_tool_grant(
+                    token=token, capability=capability, conn=acquired
+                )
         token_hash = _token_hash(token)
-        async with self.pool.acquire() as conn, conn.transaction():
+        async with conn.transaction():
             row = await conn.fetchrow(
                 """
                 SELECT grant_row.project_id, grant_row.run_id, grant_row.connection_id,
@@ -5977,6 +5989,7 @@ class Database:
         artifact_ref: str,
         artifact_path: str,
         summary: str = "Answer page draft is ready for your review.",
+        artifact_title: str | None = None,
     ) -> bool:
         """Expose a reviewable artifact and pause only when this run pinned review."""
         async with self.pool.acquire() as conn, conn.transaction():
@@ -6002,6 +6015,7 @@ class Database:
                         canonical_commit_sha = $2,
                         artifact_ref = $3,
                         artifact_path = $4,
+                        artifact_title = $5,
                         review_requested_at = CASE
                             WHEN review_required THEN COALESCE(review_requested_at, now())
                             ELSE review_requested_at
@@ -6033,9 +6047,10 @@ class Database:
                     canonical_commit_sha,
                     artifact_ref,
                     artifact_path,
+                    artifact_title,
                 )
             if review_required and row["review_decision"] is None:
-                filename = artifact_path.rsplit("/", 1)[-1]
+                filename = artifact_title or artifact_path.rsplit("/", 1)[-1]
                 revision_supported = await conn.fetchval(
                     "SELECT project_id IS NULL "
                     "AND key IN ('content.generate','content.public_article') "
@@ -6645,6 +6660,7 @@ def _project_workflow(row: asyncpg.Record) -> ProjectWorkflow:
         last_run_id=row.get("last_run_id"),
         last_run_status=RunStatus(raw_status) if raw_status is not None else None,
         last_artifact_path=row.get("last_artifact_path"),
+        last_artifact_title=row.get("last_artifact_title"),
         last_error=row["last_error"],
         settings_revision=row["settings_revision"],
         created_by_clerk_user_id=row["created_by_clerk_user_id"],
@@ -6699,6 +6715,7 @@ def _run(row: asyncpg.Record) -> WorkflowRun:
         expected_head_sha=row["expected_head_sha"],
         canonical_commit_sha=row["canonical_commit_sha"],
         artifact_path=row["artifact_path"],
+        artifact_title=row.get("artifact_title"),
         artifact_ref=row["artifact_ref"],
         retained_output=(
             _json_object(row["retained_output"], field="retained output")

@@ -131,7 +131,10 @@ def request_body(raw: bytes, operation: str, contract=CONTRACT):
             kind = tool.get("type")
             if not isinstance(kind, str):
                 return False
-            if kind == "namespace" and not nested and is_procedure_contract(contract):
+            # Codex groups local MCP functions in namespaces, including on the
+            # isolated v1 route. This is packaging, not provider-hosted execution;
+            # validate every member without changing the pinned execution bounds.
+            if kind == "namespace" and not nested:
                 members = tool.get("tools")
                 return isinstance(members, list) and all(
                     supported(member, nested=True) for member in members

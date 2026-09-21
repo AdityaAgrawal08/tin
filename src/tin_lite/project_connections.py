@@ -373,7 +373,8 @@ async def request_api(
     host = urlsplit(config["origin"]).hostname
     resolver = resolver or asyncio.get_running_loop().getaddrinfo
     addresses = await resolver(host, 443, type=socket.SOCK_STREAM)
-    ips = sorted({row[4][0] for row in addresses})
+    # Keep the resolver's route preference; lexical sorting can select unreachable IPv6.
+    ips = list(dict.fromkeys(row[4][0] for row in addresses))
     if not ips or any(
         not ipaddress.ip_address(ip).is_global
         or ipaddress.ip_address(ip).is_multicast
