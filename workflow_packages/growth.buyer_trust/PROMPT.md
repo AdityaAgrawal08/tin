@@ -1,0 +1,1 @@
+Read the project context and the site_url, depth and notes inputs. Follow the buyer-trust skill to audit whether a skeptical buyer would trust this site and checkout. Use safe public GET requests only. Write reports/BUYER_TRUST.md. Do not publish, send messages, log in, submit forms, or change other files.
