@@ -39,6 +39,22 @@
       },
       "required": ["project_id", "site_url"]
     },
+    "prerequisites": [
+      {
+        "kind": "run",
+        "level": "recommended",
+        "workflow": "qa.signup_walkthrough",
+        "reason": "The newest signup report gives the signup path and walls the trust audit checks."
+      },
+      {
+        "kind": "artifact",
+        "level": "recommended",
+        "path": "wiki/INDEX.md",
+        "section": "### Feature map",
+        "producer": "product.deep_dive",
+        "reason": "The Feature map grounds checkout claims; without it the audit uses page text only."
+      }
+    ],
     "procedure": {
       "prompt_path": "PROMPT.md",
       "skills_path": "skills",
