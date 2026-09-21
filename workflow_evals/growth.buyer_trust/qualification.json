@@ -5,6 +5,11 @@
     "Report is evidence for fixes, not a penetration test or CVE audit."
   ],
   "effects": ["Writes reports/BUYER_TRUST.md in the bound project."],
+  "cost_drivers": ["Deeper depth fetches more pages within the fenced GET budget."],
+  "rubric": [
+    {"id": "grounding", "question": "Does each claim cite its evidence URL and exact header or snippet?"},
+    {"id": "actionability", "question": "Does each fix name the exact next file or setting with a copy-paste starter?"}
+  ],
   "cases": [
     {
       "id": "ordinary",
