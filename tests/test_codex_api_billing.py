@@ -16,15 +16,7 @@ from test_codex_api import BODY, GRANT, post, result_event
 from test_procedure_publication import publication_db as publication_db
 
 from tin_lite.billing_contracts import BillingError, final_charge
-from tin_lite.codex_api import (
-    ATTEMPT,
-    CONTRACT,
-    PROCEDURE_CONTRACT,
-    USAGE,
-    attempt_key,
-    select_contract,
-    token_hash,
-)
+from tin_lite.codex_api import ATTEMPT, CONTRACT, USAGE, attempt_key, select_contract, token_hash
 from tin_lite.codex_api_pricing import RATE_CARD, REQUEST_MAXIMUM, price_response
 from tin_lite.codex_api_relay import CodexAPIRelay, router
 from tin_lite.procedures import SandboxProfile
@@ -90,21 +82,6 @@ async def paid_relay(
 ):
     await fund(f)
     f.settings.codex_api_projects = {f.project.id}
-    if contract == CONTRACT:
-        # These fixtures exercise admitted v1 quotes, which had no explicit contract.
-        # New isolated quotes use v3; preserve the historical reservation too.
-        current_terms = f.billing.terms
-
-        def pilot_terms(definition, project_id, inputs=None):
-            terms = current_terms(definition, project_id, inputs)
-            terms.pop("codex_contract", None)
-            terms.update(
-                request_maximum_nanos=REQUEST_MAXIMUM,
-                request_maximum_input_bytes=CONTRACT["max_observed_tokens"],
-            )
-            return terms
-
-        f.billing.terms = pilot_terms
     q = await quote(f)
     assert q["maximum_usd"] == "5.00" and q["terms"]["execution_fee_nanos"] == 0
     run = await start(f, q)
@@ -289,7 +266,7 @@ async def test_quote_and_admission_pin_auth_across_operator_changes(billed):
             await select_contract(
                 db=f.db, conn=conn, run=api_run, procedure=procedure, settings=f.settings
             )
-            == PROCEDURE_CONTRACT
+            == CONTRACT
         )
         f.settings.codex_api_projects = {f.project.id}
         assert await select_contract(

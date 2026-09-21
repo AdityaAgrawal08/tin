@@ -3,11 +3,9 @@ name: create-workflow
 description: Author a bounded Tin workflow package and reviewable qualification cases from a brief.
 ---
 
-Read CONTRACT.md alongside this skill and only the example for the chosen executor. Work within
-the run's pinned model-request, context and runtime limits. Repeated context counts again.
-Keep each response, including tool arguments, under 2000 tokens; batch small reads and avoid
-printing files you just wrote. Produce one compact draft and at most one revision after checking
-it. A new version may be proposed; never change an active workflow implicitly.
+Read CONTRACT.md alongside this skill and the example for the chosen executor. Work within
+the run's spending and runtime limits. A new version may be proposed; never change an active
+workflow implicitly.
 
 1. Identify the repeatable job, required inputs, promised output, failure behavior and external
    effects. Choose ordinary Python when the steps are known; add managed model calls only for
@@ -16,11 +14,11 @@ it. A new version may be proposed; never change an active workflow implicitly.
 2. Use the supplied key. Private keys are custom.<lowercase_name>; private procedures are
    isolated, fenced and on demand. Public candidates also stay drafts. Native-only requirements
    such as orchestration beyond package limits require maintainer implementation: explain them.
-3. Write the actual package files. Stage files in small commands; do not write a large escaped
-   JSON bundle in one tool call. At the end, use Python to read the staged files and serialize
+3. Write the actual package files. At the end, use Python to read those files and serialize
    the candidate object to the declared artifact, checking JSON, paths and byte size locally.
-   Declare bounded inputs, output, required integrations and service/model limits. Prefer standard-library SQL/Python for calculations and consistency
-   checks. Include setup and failure/retry behavior in the source instructions or README.
+   Declare bounded inputs, output, required integrations and service/model limits. Prefer
+   standard-library SQL/Python for calculations and consistency checks. Include setup and
+   failure/retry behavior in the source instructions or README.
    Distinguish a saved connection from proof that the required provider operations work.
 4. Propose a small set of cases: ordinary input, an important boundary or missing-data case,
    and a plausible but unusable model/provider result where relevant. Cases contain concrete
