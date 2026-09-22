@@ -7,6 +7,14 @@
     "version": "1.0.0",
     "executor": "codex.procedure",
     "schedule_modes": ["on_demand"],
+    "human_review": {
+      "eligible": true,
+      "reason": "Produces externally visible trust claims and ranked fixes.",
+      "review_label": "Review trust report",
+      "defer_label": "Not now",
+      "summary": "Review the buyer-trust report before acting on its fixes.",
+      "queue_clause": "Buyer-trust report ready to review"
+    },
     "input_schema": {
       "type": "object",
       "additionalProperties": false,

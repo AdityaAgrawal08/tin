@@ -15,7 +15,10 @@
       "id": "ordinary",
       "description": "Standard trust audit of a public site.",
       "inputs": {"site_url": "https://example.com", "depth": "standard"},
-      "expect": {"contains": ["Observed", "Fix now", "Verification record"]}
+      "expect": {
+        "contains": ["Observed", "Fix now", "Verification record"],
+        "excludes": ["CVE-", "exploitability"]
+      }
     },
     {
       "id": "focused",
@@ -25,13 +28,19 @@
         "depth": "focused",
         "notes": "Checkout lives at /checkout, guest option expected."
       },
-      "expect": {"contains": ["Observed", "checkout", "Verification record"]}
+      "expect": {
+        "contains": ["Observed", "checkout", "Verification record"],
+        "excludes": ["CVE-", "exploitability"]
+      }
     },
     {
       "id": "extensive",
       "description": "Extensive audit including linked money pages.",
       "inputs": {"site_url": "https://example.com", "depth": "extensive"},
-      "expect": {"contains": ["Observed", "Roadmap", "Verification record"]}
+      "expect": {
+        "contains": ["Observed", "Roadmap", "Verification record"],
+        "excludes": ["CVE-", "exploitability"]
+      }
     }
   ]
 }
