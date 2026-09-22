@@ -1,0 +1,79 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "growth.trust_fix",
+    "title": "Fix buyer-trust gaps in a reviewable PR",
+    "description": "Apply one pinned buyer-trust audit to the connected website repository and open an unmerged PR for headers, security.txt, and trust footer copy. Never merges or deploys.",
+    "version": "1.0.0",
+    "executor": "codex.procedure",
+    "schedule_modes": ["on_demand"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "buyer_trust_run_id": {
+          "type": "string",
+          "format": "uuid",
+          "title": "Pinned buyer-trust run",
+          "description": "The exact successful growth.buyer_trust run this fix applies."
+        },
+        "expected_repository": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 140,
+          "title": "Website repository",
+          "description": "The connected repository that serves the audited site, as owner/name."
+        },
+        "context": {
+          "type": "string",
+          "maxLength": 2000,
+          "default": "",
+          "title": "Optional constraints",
+          "description": "Hosting limits or files to avoid. Never credentials.",
+          "x-tin-ui": {"control": "textarea", "order": 40}
+        }
+      },
+      "required": ["project_id", "buyer_trust_run_id", "expected_repository"]
+    },
+    "prerequisites": [
+      {
+        "kind": "run",
+        "level": "required",
+        "workflow": "growth.buyer_trust",
+        "via_input": "buyer_trust_run_id",
+        "reason": "A trust fix applies one pinned successful buyer-trust audit."
+      }
+    ],
+    "integration_requirements": [
+      {
+        "provider_key": "infra.github",
+        "capabilities": ["contents.read", "contents.write", "pull_requests.read", "pull_requests.write"],
+        "required": true
+      }
+    ],
+    "procedure": {
+      "prompt_path": "PROMPT.md",
+      "skills_path": "skills",
+      "skill_files": ["skills/trust-fix/SKILL.md"],
+      "entry_skill": "trust-fix",
+      "workspace": {
+        "kind": "github.repository",
+        "provider_key": "infra.github",
+        "capabilities": ["contents.read", "pull_requests.read"]
+      },
+      "sandbox": {"profile": "isolated", "egress": "fenced", "timeout_seconds": 900},
+      "output": {
+        "kind": "github.pull_request",
+        "provider_key": "infra.github",
+        "max_files": 3,
+        "max_bytes": 180000,
+        "receipt_path_template": "reports/trust-fix/{run_id}/RESULT.md",
+        "allow_no_change": true
+      },
+      "verification": {
+        "commands": ["git diff --check", "git status --short"]
+      }
+    }
+  }
+}

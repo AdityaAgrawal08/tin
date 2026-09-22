@@ -1,0 +1,1 @@
+Read the pinned buyer-trust run and the expected_repository input. Follow the trust-fix skill to apply its Fix now items to the connected repository. Open one unmerged pull request or save an explicit no-change report. Never merge, deploy, or edit other projects.

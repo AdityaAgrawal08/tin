@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "assumptions": [
+    "Fix applies one pinned buyer-trust run to the repository that serves that site.",
+    "Static hosts and header configs only; no framework build or payment logic changes."
+  ],
+  "effects": ["Opens one unmerged GitHub PR plus a run receipt in this project."],
+  "cost_drivers": ["Number of Fix now items applied, within the three-file change budget."],
+  "rubric": [
+    {"id": "grounding", "question": "Does the receipt cite the pinned audit run and exact files changed?"},
+    {"id": "bounds", "question": "Does the change stay within headers, security.txt, and footer copy without widening scope?"}
+  ],
+  "cases": [
+    {
+      "id": "ordinary",
+      "description": "Apply Fix now headers and footer links to the connected repository.",
+      "inputs": {
+        "buyer_trust_run_id": "00000000-0000-4000-8000-000000000001",
+        "expected_repository": "example/site"
+      },
+      "expect": {"contains": ["pull request", "Verification", "reports/trust-fix"]}
+    },
+    {
+      "id": "no_change",
+      "description": "Unsupported host returns an explicit no-change report instead of a PR.",
+      "inputs": {
+        "buyer_trust_run_id": "00000000-0000-4000-8000-000000000001",
+        "expected_repository": "example/site",
+        "context": "Managed host without header config; do not widen scope."
+      },
+      "expect": {"contains": ["no-change", "Verification", "reports/trust-fix"]}
+    }
+  ]
+}
