@@ -1,0 +1,55 @@
+{
+  "package_format": "tin-workflow-package-v1",
+  "definition": {
+    "key": "reports.trust_gate",
+    "title": "Gate buyer-trust evidence deterministically",
+    "description": "Validate pasted header and status evidence for a public site and checkout with ordinary Python. No fetching, no model calls, no credentials. Returns a PASS/FAIL gate with ranked fixes.",
+    "version": "1.0.0",
+    "executor": "workflow.code",
+    "schedule_modes": ["on_demand", "weekly"],
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "headers_json": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16000,
+          "title": "Observed headers as JSON",
+          "description": "JSON object with optional string keys: hsts, csp, x_frame_options, referrer_policy, x_content_type_options, security_txt_contact, security_txt_expiry.",
+          "x-tin-ui": {"control": "textarea", "order": 10}
+        },
+        "checks_json": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16000,
+          "title": "Observed status codes as JSON",
+          "description": "JSON object with integer status codes: privacy_status, security_txt_status, robots_status, git_head_status, env_status.",
+          "x-tin-ui": {"control": "textarea", "order": 20}
+        },
+        "checkout_json": {
+          "type": "string",
+          "maxLength": 8000,
+          "default": "",
+          "title": "Checkout facts as JSON",
+          "description": "Optional JSON object: guest_option and total_before_pay booleans, contact_url and refund_url strings.",
+          "x-tin-ui": {"control": "textarea", "order": 30}
+        }
+      },
+      "required": ["project_id", "headers_json", "checks_json"]
+    },
+    "code": {
+      "runtime": "python3.12.8-stdlib-v1",
+      "entrypoint": "main.py",
+      "files": ["main.py"],
+      "timeout_seconds": 20,
+      "output": {
+        "kind": "project.artifact",
+        "path": "reports/TRUST_GATE.md",
+        "media_type": "text/markdown",
+        "max_bytes": 8000
+      }
+    }
+  }
+}

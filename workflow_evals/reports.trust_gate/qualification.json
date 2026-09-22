@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "assumptions": [
+    "Evidence is pasted by the operator from safe public GETs; this package never fetches.",
+    "Statuses are exact HTTP codes; headers are exact observed values."
+  ],
+  "effects": ["Writes reports/TRUST_GATE.md in the bound project."],
+  "cost_drivers": ["None. Deterministic code without model routes uses no Tin credits."],
+  "cases": [
+    {
+      "id": "ordinary",
+      "description": "Complete evidence passes the gate.",
+      "inputs": {
+        "headers_json": "{\"hsts\": \"max-age=31536000; includeSubDomains\", \"csp\": \"default-src 'self'; frame-ancestors 'none'\", \"x_frame_options\": \"DENY\", \"referrer_policy\": \"strict-origin-when-cross-origin\", \"x_content_type_options\": \"nosniff\", \"security_txt_contact\": \"mailto:security@example.com\", \"security_txt_expiry\": \"2027-01-01T00:00:00Z\"}",
+        "checks_json": "{\"privacy_status\": 200, \"security_txt_status\": 200, \"robots_status\": 200, \"git_head_status\": 404, \"env_status\": 404}",
+        "checkout_json": "{\"guest_option\": true, \"total_before_pay\": true, \"contact_url\": \"https://example.com/contact\", \"refund_url\": \"https://example.com/refunds\"}"
+      },
+      "expect": {"contains": ["Verdict: PASS", "Evidence", "Verification record"]}
+    },
+    {
+      "id": "missing_hsts",
+      "description": "Missing HSTS fails the gate but still renders ranked fixes.",
+      "inputs": {
+        "headers_json": "{\"csp\": \"default-src 'self'\", \"x_frame_options\": \"\", \"referrer_policy\": \"\", \"x_content_type_options\": \"\"}",
+        "checks_json": "{\"privacy_status\": 200, \"security_txt_status\": 404, \"robots_status\": 200, \"git_head_status\": 404, \"env_status\": 404}"
+      },
+      "expect": {"contains": ["Verdict: FAIL", "Strict-Transport-Security", "Fix this week"]}
+    },
+    {
+      "id": "exposed_git",
+      "description": "A 200 on a repository path is a Fix now with evidence rows.",
+      "inputs": {
+        "headers_json": "{\"hsts\": \"max-age=31536000; includeSubDomains\", \"csp\": \"default-src 'self'; frame-ancestors 'none'\", \"x_frame_options\": \"DENY\", \"referrer_policy\": \"strict-origin-when-cross-origin\", \"x_content_type_options\": \"nosniff\"}",
+        "checks_json": "{\"privacy_status\": 404, \"security_txt_status\": 404, \"robots_status\": 200, \"git_head_status\": 200, \"env_status\": 404}"
+      },
+      "expect": {"contains": ["Verdict: FAIL", "Fix now", "/.git/HEAD"]}
+    },
+    {
+      "id": "invalid_json",
+      "description": "Malformed evidence JSON is rejected instead of guessed.",
+      "inputs": {
+        "headers_json": "not-json",
+        "checks_json": "{\"privacy_status\": 200, \"security_txt_status\": 200, \"robots_status\": 200, \"git_head_status\": 404, \"env_status\": 404}"
+      },
+      "expected_status": "failed"
+    }
+  ]
+}
