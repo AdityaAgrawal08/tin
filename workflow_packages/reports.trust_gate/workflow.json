@@ -6,7 +6,7 @@
     "description": "Validate pasted header and status evidence for a public site and checkout with ordinary Python. No fetching, no model calls, no credentials. Returns a PASS/FAIL gate with ranked fixes.",
     "version": "1.0.0",
     "executor": "workflow.code",
-    "schedule_modes": ["on_demand", "weekly"],
+    "schedule_modes": ["on_demand"],
     "input_schema": {
       "type": "object",
       "additionalProperties": false,
@@ -33,7 +33,7 @@
           "maxLength": 8000,
           "default": "",
           "title": "Checkout facts as JSON",
-          "description": "Optional JSON object: guest_option and total_before_pay booleans, contact_url and refund_url strings.",
+          "description": "Optional JSON object: guest_option and total_before_pay booleans, contact_url and refund_url https:// strings. Empty means checkout was not checked.",
           "x-tin-ui": {"control": "textarea", "order": 30}
         }
       },

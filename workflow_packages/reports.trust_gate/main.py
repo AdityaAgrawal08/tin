@@ -91,8 +91,12 @@ def run(ctx, inputs):
             if key in checkout and type(checkout[key]) is not bool:
                 raise ValueError(f"checkout_json.{key} must be a boolean")
         for key in ("contact_url", "refund_url"):
-            if key in checkout and (not isinstance(checkout[key], str) or len(checkout[key]) > 500):
-                raise ValueError(f"checkout_json.{key} must be a short string")
+            if key in checkout:
+                value = checkout[key]
+                if not isinstance(value, str) or len(value) > 500:
+                    raise ValueError(f"checkout_json.{key} must be a short string")
+                if value and not value.startswith("https://"):
+                    raise ValueError(f"checkout_json.{key} must be an https:// URL")
     else:
         checkout = {}
 
@@ -156,15 +160,27 @@ def run(ctx, inputs):
         )
     )
 
-    expiry = headers.get("security_txt_expiry", "")
-    if expiry:
+    robots_status = checks["robots_status"]
+    robots_ok = robots_status < 500
+    if not robots_ok:
+        fix_week.append("robots.txt: resolve the 5xx so crawlers receive a stable result.")
+    evidence_rows.append(_row("/robots.txt status", robots_status, robots_ok))
+
+    expiry_raw = headers.get("security_txt_expiry", "")
+    expiry_ok = False
+    if expiry_raw:
         try:
-            expires_at = datetime.fromisoformat(str(expiry).replace("Z", "+00:00"))
+            expires_at = datetime.fromisoformat(str(expiry_raw).replace("Z", "+00:00"))
             now = datetime.now(UTC)
             if expires_at <= now:
                 fix_week.append("security.txt: renew the past `Expires:` date.")
+            else:
+                expiry_ok = True
         except ValueError as exc:
             raise ValueError("headers_json.security_txt_expiry must be ISO-8601") from exc
+    elif checks["security_txt_status"] == 200:
+        fix_week.append("security.txt: add a future `Expires:` date.")
+    evidence_rows.append(_row("security.txt Expires", expiry_raw, expiry_ok))
 
     if checks["privacy_status"] != 200:
         fix_now.append("Footer links Privacy plus Terms on every page, including checkout.")

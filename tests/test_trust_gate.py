@@ -11,7 +11,7 @@ ROOT = Path(__file__).parents[1]
 PACKAGE = ROOT / "workflow_packages" / "reports.trust_gate"
 
 
-def load(tmp_path=None):
+def load_trust_gate(tmp_path=None):
     """Import a copy so no bytecode cache lands inside the contributed package."""
     source = (PACKAGE / "main.py").read_bytes()
     if tmp_path is not None:
@@ -66,7 +66,7 @@ def passing_inputs():
 
 
 def test_passing_evidence_renders_pass_and_validates(tmp_path):
-    module, definition = load(tmp_path)
+    module, definition = load_trust_gate(tmp_path)
     spec = validate_code_definition(definition)
     result = module.run(None, passing_inputs())
     validate_code_result(json.dumps(result).encode(), spec)
@@ -75,7 +75,7 @@ def test_passing_evidence_renders_pass_and_validates(tmp_path):
 
 
 def test_missing_hsts_fails_with_ranked_fix(tmp_path):
-    module, _ = load(tmp_path)
+    module, _ = load_trust_gate(tmp_path)
     inputs = passing_inputs()
     payload = json.loads(inputs["headers_json"])
     del payload["hsts"]
@@ -86,7 +86,7 @@ def test_missing_hsts_fails_with_ranked_fix(tmp_path):
 
 
 def test_exposed_git_path_is_fix_now(tmp_path):
-    module, _ = load(tmp_path)
+    module, _ = load_trust_gate(tmp_path)
     inputs = passing_inputs()
     payload = json.loads(inputs["checks_json"])
     payload["git_head_status"] = 200
@@ -97,7 +97,7 @@ def test_exposed_git_path_is_fix_now(tmp_path):
 
 
 def test_malformed_json_and_bad_status_are_rejected(tmp_path):
-    module, _ = load(tmp_path)
+    module, _ = load_trust_gate(tmp_path)
     inputs = passing_inputs()
     inputs["headers_json"] = "not-json"
     try:
@@ -116,3 +116,63 @@ def test_malformed_json_and_bad_status_are_rejected(tmp_path):
         pass
     else:
         raise AssertionError("non-integer status must raise ValueError")
+
+
+def test_missing_checkout_json_still_renders(tmp_path):
+    module, definition = load_trust_gate(tmp_path)
+    spec = validate_code_definition(definition)
+    inputs = passing_inputs()
+    del inputs["checkout_json"]
+    result = module.run(None, inputs)
+    validate_code_result(json.dumps(result).encode(), spec)
+    assert "Verdict: PASS" in result["content"]
+
+
+def test_malformed_expiry_is_rejected(tmp_path):
+    module, _ = load_trust_gate(tmp_path)
+    inputs = passing_inputs()
+    payload = json.loads(inputs["headers_json"])
+    payload["security_txt_expiry"] = "not-a-date"
+    inputs["headers_json"] = json.dumps(payload)
+    try:
+        module.run(None, inputs)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("malformed security_txt_expiry must raise ValueError")
+
+
+def test_expired_security_txt_is_fix_week(tmp_path):
+    module, _ = load_trust_gate(tmp_path)
+    inputs = passing_inputs()
+    payload = json.loads(inputs["headers_json"])
+    payload["security_txt_expiry"] = "2020-01-01T00:00:00Z"
+    inputs["headers_json"] = json.dumps(payload)
+    result = module.run(None, inputs)
+    assert "security.txt Expires" in result["content"]
+    assert "renew the past" in result["content"]
+
+
+def test_robots_5xx_is_fix_week(tmp_path):
+    module, _ = load_trust_gate(tmp_path)
+    inputs = passing_inputs()
+    payload = json.loads(inputs["checks_json"])
+    payload["robots_status"] = 500
+    inputs["checks_json"] = json.dumps(payload)
+    result = module.run(None, inputs)
+    assert "/robots.txt status" in result["content"]
+    assert "robots.txt: resolve the 5xx" in result["content"]
+
+
+def test_non_https_checkout_url_is_rejected(tmp_path):
+    module, _ = load_trust_gate(tmp_path)
+    inputs = passing_inputs()
+    payload = json.loads(inputs["checkout_json"])
+    payload["contact_url"] = "http://example.com/contact"
+    inputs["checkout_json"] = json.dumps(payload)
+    try:
+        module.run(None, inputs)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("non-https contact_url must raise ValueError")

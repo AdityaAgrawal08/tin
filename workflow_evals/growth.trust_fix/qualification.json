@@ -2,6 +2,7 @@
   "version": 1,
   "assumptions": [
     "Fix applies one pinned buyer-trust run to the repository that serves that site.",
+    "Source-only contribution: growth.buyer_trust and growth.trust_fix must be registered together; merging source alone does not activate either workflow.",
     "Static hosts and header configs only; no framework build or payment logic changes."
   ],
   "effects": ["Opens one unmerged GitHub PR plus a run receipt in this project."],
